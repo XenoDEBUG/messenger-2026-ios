@@ -1,0 +1,20 @@
+{
+  "name": "messenger-2026-pc",
+  "version": "0.1.0",
+  "description": "Messenger 2026 — тестовая сборка для ПК",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "31.7.0",
+    "electron-builder": "24.13.3"
+  },
+  "build": {
+    "appId": "com.test.messenger2026.pc",
+    "productName": "Messenger 2026",
+    "files": ["main.js", "www/**/*"],
+    "win": { "target": "portable" }
+  }
+}
