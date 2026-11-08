@@ -1,0 +1,6 @@
+{
+  "appId": "com.test.messenger2026",
+  "appName": "Messenger 2026",
+  "webDir": "www",
+  "ios": { "contentInset": "never", "backgroundColor": "#060a1c" }
+}
