@@ -16,9 +16,11 @@ jobs:
       - run: npm install
       - run: npx cap add ios
       - run: npx cap sync ios
+      - name: CocoaPods install
+        run: cd ios/App && pod install
       - name: Build (no signing)
         run: |
-          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release \
             -destination 'generic/platform=iOS' -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
       - name: Package IPA
