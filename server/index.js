@@ -21,12 +21,14 @@ const User = mongoose.model("User", new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 }));
 
-const Message = mongoose.model("Message", new mongoose.Schema({
-  scope: { type: String, required: true, index: true },
+const messageSchema = new mongoose.Schema({
+  scope: { type: String, required: true },
   author: { type: String, required: true },
   text: { type: String, required: true, maxlength: 2000 },
-  createdAt: { type: Date, default: Date.now, index: true }
-}));
+  createdAt: { type: Date, default: Date.now }
+});
+messageSchema.index({ scope: 1, createdAt: -1 });
+const Message = mongoose.model("Message", messageSchema);
 
 // Личные сообщения: общий ключ для двух ников, отсортированный
 const dmScope = (a, b) => "dm:" + [a, b].sort().join("|");
@@ -57,6 +59,7 @@ app.use(cors({ origin: ORIGIN }));
 app.use(express.json({ limit: "100kb" }));
 
 app.get("/", (_req, res) => res.json({ ok: true, name: "messenger-2026" }));
+app.get("/health", (_req, res) => res.json({ ok: mongoose.connection.readyState === 1 }));
 
 app.post("/api/register", async (req, res) => {
   const username = String(req.body.username || "").trim().toLowerCase();
@@ -146,7 +149,7 @@ io.on("connection", socket => {
 async function start() {
   if (!MONGODB_URI) throw new Error("Не задан MONGODB_URI");
   await mongoose.connect(MONGODB_URI);
-  await User.init();
+  await Promise.all([User.init(), Message.init()]);
   server.listen(PORT, () => console.log("Сервер запущен на порту " + PORT));
 }
 
