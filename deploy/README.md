@@ -1,15 +1,50 @@
-# Развёртывание на VDS (Ubuntu 22.04/24.04)
+# Развёртывание на VDS (Ubuntu 22.04 или 24.04)
 
-1. Установите Docker: `curl -fsSL https://get.docker.com | sh`
-2. Загрузите папку репозитория на сервер (`git clone https://github.com/XenoDEBUG/messenger-2026-ios`).
-3. `cd messenger-2026-ios/deploy`, `cp .env.example .env`, заполните `.env`.
-4. Запуск: `docker compose up -d --build`
-5. Проверка: `curl http://ВАШ_IP:3000/health` должен вернуть `{"ok":true}`.
+## 1. Подключиться к VDS с компьютера
+Windows: откройте PowerShell и выполните `ssh root@ВАШ_IP`, введите пароль из письма хостера.
+Либо программа PuTTY. При первом входе подтвердите ключ (`yes`).
 
-Данные Mongo лежат в томе `mongo-data` и не теряются при перезапуске.
-Открыть порт 3000 в фаерволе: `ufw allow 3000`.
+## 2. Установить Docker
+```
+curl -fsSL https://get.docker.com | sh
+```
 
-Обновление: `git pull && docker compose up -d --build`.
+## 3. Скачать сервер
+```
+git clone https://github.com/XenoDEBUG/messenger-2026-ios
+cd messenger-2026-ios/deploy
+```
 
-Подключиться к базе через MongoDB Compass: `mongodb://USER:PASSWORD@ВАШ_IP:27017/messenger?authSource=admin`.
-Порт 27017 наружу не открыт, поэтому для Compass пробросьте его через SSH-туннель или откройте порт осознанно.
+## 4. Настроить пароли
+```
+cp .env.example .env
+nano .env
+```
+Заполните `MONGO_PASSWORD` и `JWT_SECRET` (длинные случайные строки). Сохраните: Ctrl+O, Enter, Ctrl+X.
+
+## 5. Запустить
+```
+docker compose up -d --build
+```
+Проверка с VDS: `curl http://localhost:3000/health` должен вернуть `{"ok":true}`.
+Снаружи: откройте в браузере `http://ВАШ_IP:3000/health`. Для этого откройте порт:
+`ufw allow 3000 && ufw allow OpenSSH && ufw enable`
+
+## 6. Подключить базу в MongoDB Compass (с компьютера)
+Сначала откройте туннель в отдельном окне PowerShell и оставьте его открытым:
+```
+ssh -L 27017:127.0.0.1:27017 root@ВАШ_IP
+```
+В Compass создайте подключение:
+```
+mongodb://ПОЛЬЗОВАТЕЛЬ:ПАРОЛЬ@localhost:27017/messenger?authSource=admin
+```
+Где ПОЛЬЗОВАТЕЛЬ и ПАРОЛЬ — значения `MONGO_USER` и `MONGO_PASSWORD` из `.env`. База открыта только через туннель, наружу порт 27017 не выведен.
+
+## Обновление
+```
+cd messenger-2026-ios/deploy && git pull && docker compose up -d --build
+```
+
+## Данные
+Данные Mongo хранятся в томе `mongo-data` и остаются при перезапуске и обновлении.
