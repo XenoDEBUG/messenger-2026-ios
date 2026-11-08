@@ -1,0 +1,28 @@
+name: Server tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["server/**", ".github/workflows/server-test.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:7
+        ports: ["27017:27017"]
+    defaults:
+      run:
+        working-directory: server
+    env:
+      MONGODB_URI: mongodb://localhost:27017/messenger_test
+      JWT_SECRET: ci-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm test
