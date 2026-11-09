@@ -2819,8 +2819,7 @@
   }
 
   const feed = $("feed");
-  function render() {
-    // сообщения и записи о звонках в одной ленте: запись встаёт на своё место по порядку
+    function render() {
     const base = STORE[current] || [], sysArr = SYS[current] || [], list = [];
     let si = 0;
     base.forEach((m, bi) => {
@@ -2828,27 +2827,27 @@
       list.push(m);
     });
     while (si < sysArr.length) list.push(sysArr[si++]);
+    
     let html = '<div class="day">Сегодня</div>', prev = null;
+    
     list.forEach((m, i) => {
       if (m.sys) { html += `<div class="sys-msg">${esc(m.t)} · ${m.time}</div>`; prev = null; return; }
+      
       const p = who(m.a);
       const cont = prev && prev.a === m.a;
       const delay = `style="animation-delay:${Math.min(i*0.05,0.6)}s"`;
       const reacts = m.r ? `<div class="reactions">${m.r.map(([e,n,mine]) => `<button class="react ${mine?"mine":""}" data-e="${esc(e)}">${EMO[e] ? emo(e) : esc(e)} ${n}</button>`).join("")}</div>` : "";
       const actions = `<div class="actions" data-i="${i}"><button data-act="react" title="Реакция">${I26("react")}</button><button data-act="reply" title="Ответить">${I26("reply")}</button><button data-act="more" title="Ещё">${I26("more")}</button></div>`;
-            const isMine = USER && m.a === USER.nick;
-            else html += `<div class="msg ${isMine ? 'mine' : ''}" ${delay}>
-        <div class="av" style="background:${p.avatar ? "none" : p.g}">${p.avatar ? `<img src="${p.avatar}" alt="">` : initial(p.name)}${decoHTML(decorOf(m.a))}</div>
-        <div class="body">
-          <div class="head">
-            <span class="author">${esc(p.name)}${badgesHTML(p)}</span>
-            <span class="time">${m.time}</span>
-          </div>
-          ${bodyHTML(m)}${tickHTML(m)}${reacts}
-        </div>
-        ${actions}
-      </div>`;
+      const isMine = USER && m.a === USER.nick;
+
+      if (cont) {
+        html += `<div class="msg cont ${isMine ? 'mine' : ''}" ${delay}><span class="stamp">${m.time}</span><div class="av"></div><div class="body">${bodyHTML(m)}${tickHTML(m)}${reacts}</div>${actions}</div>`;
+      } else {
+        html += `<div class="msg ${isMine ? 'mine' : ''}" ${delay}><div class="av" style="background:${p.avatar ? "none" : p.g}">${p.avatar ? `<img src="${p.avatar}" alt="">` : initial(p.name)}${decoHTML(decorOf(m.a))}</div><div class="body"><div class="head"><span class="author">${esc(p.name)}${badgesHTML(p)}</span><span class="nick">@${esc(p.nick)}</span><span class="time">${m.time}</span></div>${bodyHTML(m)}${tickHTML(m)}${reacts}</div>${actions}</div>`;
+      }
+      prev = m;
     });
+    
     feed.innerHTML = html;
     feed.scrollTo({ top: feed.scrollHeight, behavior: "smooth" });
   }
