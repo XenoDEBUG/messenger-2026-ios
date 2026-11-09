@@ -803,6 +803,25 @@
   #icIco { overflow:visible; }
   #icIco img { width:100%; height:100%; border-radius:50%; object-fit:cover; }
   .sys-msg { text-align:center; margin:12px auto; font-size:12px; color:var(--muted, #8b93b8); background:rgba(255,255,255,.06); border-radius:999px; padding:5px 14px; width:fit-content; max-width:90%; }
+  .srv-list { display:flex; flex-direction:column; gap:8px; }
+  .srv-title { cursor:pointer; }
+  .srv-modal { max-height:86vh; overflow:auto; }
+  .srv-sec { margin-top:18px; }
+  .srv-sec h3 { font-size:12px; letter-spacing:.06em; text-transform:uppercase; opacity:.7; margin:0 0 8px; }
+  .srv-row { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:12px; background:rgba(255,255,255,.05); margin-bottom:6px; }
+  .srv-chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .srv-chip { display:inline-flex; align-items:center; gap:6px; padding:4px 11px; border-radius:999px; border:1px solid rgba(255,255,255,.18); font-size:12px; cursor:pointer; background:none; color:inherit; }
+  .srv-chip.on { background:rgba(91,140,255,.35); border-color:transparent; }
+  .srv-chip:disabled { cursor:default; opacity:.85; }
+  .srv-dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .srv-perms label { display:flex; gap:8px; align-items:center; font-size:13px; margin:5px 0; }
+  .srv-form { display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
+  .srv-form input[type=text], .srv-form input:not([type]) { flex:1; min-width:120px; padding:9px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.15); background:rgba(0,0,0,.2); color:inherit; }
+  .srv-form input[type=color] { width:44px; height:38px; border:none; background:none; padding:0; }
+  .srv-code { font-family:monospace; font-size:18px; letter-spacing:.14em; padding:8px 12px; border-radius:10px; background:rgba(255,255,255,.06); }
+  .srv-small { font-size:12px; opacity:.7; }
+  .srv-x { background:none; border:none; color:inherit; cursor:pointer; opacity:.7; font-size:15px; }
+  .btn-danger { background:#e5484d; color:#fff; border:none; }
   #remoteVid { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .3s; }
   #remoteVid.on { opacity:1; }
   .incoming { position:fixed; inset:0; z-index:300; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.6); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
@@ -898,13 +917,12 @@
 
 <div class="app">
   <nav class="rail glass" data-panel="rail">
-    <button class="server active" data-srv="ts" title="Тестовый сервер">TS</button>
-    <button class="server" data-srv="dev" title="Разработка">DEV</button>
+    <div id="srvList" class="srv-list"></div>
     <button class="server add" id="addServer" title="Добавить сервер">+</button>
   </nav>
 
   <aside class="channels channels-wrap glass" data-panel="channels">
-    <div class="ch-head"><button class="burger mob-only" data-burger title="Серверы">‹</button><span>Тестовый сервер</span></div>
+    <div class="ch-head"><button class="burger mob-only" data-burger title="Серверы">‹</button><span id="srvTitle" class="srv-title" title="Настройки сервера">Серверы</span></div>
     <div class="ch-body" id="chList"></div>
     <div class="me-wrap">
       <div class="pop" id="stPop"></div>
@@ -1138,6 +1156,25 @@
   </div>
 </div>
 
+<div class="scrim" id="srvAddScrim">
+  <div class="modal" style="width:min(440px,94vw)">
+    <h2>Сервер</h2>
+    <p class="sub">Создайте свой сервер или вступите по коду приглашения.</p>
+    <div class="seg" id="srvMode"><button class="on" data-v="create">Создать</button><button data-v="join">По коду</button></div>
+    <div id="srvCreateBox" class="field" style="margin-top:14px"><label for="srvName">Название сервера</label><input id="srvName" maxlength="40" placeholder="Мой сервер"></div>
+    <div id="srvJoinBox" class="field" style="margin-top:14px;display:none"><label for="srvCode">Код приглашения</label><input id="srvCode" maxlength="12" placeholder="A1B2C3D4" style="text-transform:uppercase"></div>
+    <div class="row"><button class="btn btn-ghost" data-close="srvAddScrim">Отмена</button><button class="btn btn-primary" id="srvOk">Создать</button></div>
+  </div>
+</div>
+
+<div class="scrim" id="srvSetScrim">
+  <div class="modal srv-modal" style="width:min(640px,96vw)">
+    <h2 id="srvSetTitle">Сервер</h2>
+    <div id="srvSetBody"></div>
+    <div class="row"><button class="btn btn-ghost" data-close="srvSetScrim">Закрыть</button><button class="btn btn-danger" id="srvLeave">Выйти</button></div>
+  </div>
+</div>
+
 <div class="call" id="call">
   <div class="call-top"><span class="call-title" id="callTitle"></span><span class="call-timer" id="callTimer">00:00</span></div>
   <div class="call-grid" id="callGrid"></div>
@@ -1275,8 +1312,34 @@
       pushMsg("dm:" + other, toMsg(r.message));
     });
   }
+  function sendChannel(id, text, audio, dur, file) {
+    if (!socket || !socket.connected) return toast("Нет связи с сервером, сообщение не отправлено");
+    socket.timeout(10000).emit("message:send", { chatType: "channel", chatId: id, text: text || "", audio: audio || null, dur: dur || 0, file: file || null }, (err, r) => {
+      if (err) return toast("Сервер не ответил, попробуйте ещё раз");
+      if (!r || !r.ok) return toast(r ? r.error : "Нет связи с сервером");
+      pushMsg("ch:" + id, toMsg(r.message));
+    });
+  }
+  function sendTo(key, text, audio, dur, file) {
+    if (key.startsWith("ch:")) return sendChannel(key.slice(3), text, audio, dur, file);
+    return sendDM(key.slice(3), text, audio, dur, file);
+  }
+  async function loadChannel(id) {
+    const r = await api("GET", "/api/messages?chatType=channel&chatId=" + encodeURIComponent(id));
+    await Promise.all([...new Set(r.messages.map((m) => m.from))].map(loadUserToCache));
+    STORE["ch:" + id] = r.messages.map(toMsg);
+    if (current === "ch:" + id) render();
+    if (socket) socket.emit("messages:read", { chatType: "channel", chatId: id });
+  }
   function onServerMsg(m) {
-    if (!USER || m.chatType !== "dm") return;
+    if (!USER) return;
+    if (m.chatType === "channel") {
+      const key = "ch:" + m.chatId;
+      loadUserToCache(m.from).then(() => pushMsg(key, toMsg(m)));
+      if (m.from !== USER.nick && current === key && socket) socket.emit("messages:read", { chatType: "channel", chatId: m.chatId });
+      return;
+    }
+    if (m.chatType !== "dm") return;
     const other = m.from === USER.nick ? m.to : m.from;
     if (!other || m.chatId !== pairKey(USER.nick, other)) return;
     pushMsg("dm:" + other, toMsg(m));
@@ -1288,6 +1351,8 @@
     socket.on("connect", () => {
       setNet(true);
       if (current.startsWith("dm:")) loadDM(current.slice(3)).catch(() => {});
+      if (current.startsWith("ch:")) loadChannel(current.slice(3)).catch(() => {});
+      SRV_LIST.forEach((s) => s.channels.forEach((c) => socket.emit("channel:join", c.id)));
     });
     socket.on("disconnect", () => setNet(false, "Нет связи, переподключаюсь…"));
     socket.on("connect_error", (err) => setNet(false, "Нет связи с сервером: " + err.message));
@@ -1298,6 +1363,7 @@
       if (current === "dm:" + reader) render();
     });
     socket.on("friend:update", () => loadFriendsFromServer().catch(() => {}));
+    socket.on("servers:update", () => loadServers().catch(() => {}));
     socket.on("call:invite", onCallInvite);
     socket.on("call:answer", onCallAnswer);
     socket.on("call:ice", onCallIce);
@@ -1324,6 +1390,7 @@
     enter(isNew);
     connectSocket();
     loadFriendsFromServer().catch((e) => toast(e.message));
+    loadServers().catch((e) => toast(e.message));
   }
   /* ================= ДАННЫЕ ================= */
   const THEMES = [
@@ -1362,25 +1429,15 @@
   let USER = null;
   let stEmoji = "💻";
 
-  const TS_CHANNELS = [
-    { cat:"Текстовые", items:[{ n:"general", t:"text" }, { n:"random", t:"text" }, { n:"dev", t:"text" }] },
-    { cat:"Голосовые", items:[{ n:"Общая комната", t:"voice" }, { n:"AFK", t:"voice" }] }
-  ];
-  const DEV_CHANNELS = [
-    { cat:"Разработка", items:[{ n:"backend", t:"text" }, { n:"frontend", t:"text" }] },
-    { cat:"Голосовые", items:[{ n:"Код-ревью", t:"voice" }] }
-  ];
-  const SERVERS = {
-    ts:  { name:"Тестовый сервер", chans: TS_CHANNELS },
-    dev: { name:"Разработка", chans: DEV_CHANNELS }
-  };
-  let CHANNELS = TS_CHANNELS;
-  let server = "ts";
+  /* серверы и каналы приходят с API; заглушек нет */
+  let CHANNELS = [];
+  let SRV_LIST = [];
+  let activeSrv = null;
   const STORE = {
     general: [], random: [], dev: [], backend: [], frontend: []
   };
   const MEMBERS = [];
-  let current = "general";
+  let current = "";
 
   /* ---------- своя палитра: цветовой круг-квадрат + полоса оттенка ---------- */
   const PAL_PRESETS = ["#5b8cff","#8a6bff","#36d1ff","#ff7a59","#ff3d7f","#ffc23d","#39ff9e","#00d4ff","#ff3dff","#2ee6c5","#ff4fa3","#ffffff"];
@@ -1835,31 +1892,38 @@
     return { nick, name: m.name || nick, bio: d.bio, links: d.links, g: m.g, avatar: null, st: m.st, custom: m.custom, bn: d.bn, decor: d.decor, act: d.act };
   }
   function titleOf(n) {
+    if (n.startsWith("ch:")) { const c = findChannel(n); return c ? (c.label || c.n) : ""; }
     if (n.startsWith("dm:")) return profileOf(n.slice(3)).name;
     if (n.startsWith("grp:")) return (GROUPS.find(g => "grp:" + g.id === n) || { name: "Группа" }).name;
     return n;
   }
-  function placeholderOf(n) { return isDM(n) ? "Написать: " + titleOf(n) : "Написать в #" + n; }
+  function placeholderOf(n) { return isDM(n) ? "Написать: " + titleOf(n) : "Написать в #" + titleOf(n); }
 
   /* вид: главная / друзья / личные сообщения */
   function setView(v) {
     view = v;
     panelEl("chat").classList.toggle("is-friends", v === "friends");
     document.querySelectorAll(".rail .server").forEach(b => b.classList.toggle("active", v !== "home" ? b.dataset.view === "friends" : b.dataset.srv === server));
-    if (v === "home" && isDM(current)) switchTo(CHANNELS[0].items[0].n);
+    if (v === "home" && isDM(current) && CHANNELS[0] && CHANNELS[0].items[0]) switchTo(CHANNELS[0].items[0].n);
     if (v === "friends") { $("chTitle").textContent = "Друзья"; document.querySelector(".chat-head .hash").textContent = "♥"; renderFriends(); }
     renderChannels();
   }
   function openDM(n) { setView("home"); switchTo("dm:" + n); }
   function pickServer(id) {
-    const srv = SERVERS[id]; if (!srv) return;
-    if (id === server && view === "home") return;
-    server = id; CHANNELS = srv.chans; view = "home";
+    const srv = SRV_LIST.find((s) => s.id === id); if (!srv) return;
+    const changed = !activeSrv || activeSrv.id !== id;
+    activeSrv = srv; view = "home";
     panelEl("chat").classList.remove("is-friends");
-    document.querySelector(".ch-head > span").textContent = srv.name;
-    document.querySelectorAll(".rail .server").forEach(b => b.classList.toggle("active", b.dataset.srv === id));
-    switchTo(srv.chans[0].items[0].n);
-    renderChannels();
+    applyActiveServer();
+    if (changed || !CHANNELS[0].items.some((c) => c.n === current)) {
+      const first = srv.channels[0];
+      if (first) switchTo("ch:" + first.id);
+      else {
+        current = "";
+        $("chTitle").textContent = srv.name;
+        feed.innerHTML = '<div class="day">В этом сервере пока нет каналов</div>';
+      }
+    }
   }
   document.querySelector(".rail").addEventListener("click", e => {
     const s = e.target.closest("[data-srv]"); if (s) return pickServer(s.dataset.srv);
@@ -2638,7 +2702,7 @@
         <div class="group-title"><span>${esc(g.cat)}</span><button data-add="${esc(g.cat)}" title="Создать канал">+</button></div>
         ${g.items.map((c,i) => `
           <div class="ch ${c.n === current ? "active" : ""}" data-name="${esc(c.n)}" data-type="${c.t}" style="animation-delay:${i*0.05}s">
-            <span class="icon">${c.avatar ? `<img class="chav" src="${c.avatar}" alt="">` : (c.t === "voice" ? "◉" : "#")}</span>${esc(c.n)}
+            <span class="icon">${c.avatar ? `<img class="chav" src="${c.avatar}" alt="">` : (c.t === "voice" ? "◉" : "#")}</span>${esc(c.label || c.n)}
             ${c.badge ? `<span class="badge">${c.badge}</span>` : ""}${c.live ? `<span class="live"></span>` : ""}${c.priv ? `<span class="lock">${I26("lock", 14)}</span>` : ""}
           </div>`).join("")}
       </div>`).join("");
@@ -2694,6 +2758,7 @@
     feed.innerHTML = '<div class="skeleton" style="width:60%"></div><div class="skeleton" style="width:40%"></div><div class="skeleton" style="width:75%"></div>';
     setTimeout(render, 260);
     if (SRV.token && name.startsWith("dm:")) loadDM(name.slice(3)).catch((e) => toast(e.message));
+    if (SRV.token && name.startsWith("ch:")) loadChannel(name.slice(3)).catch((e) => toast(e.message));
   }
 
   
@@ -2810,7 +2875,8 @@
     if (!t || !USER) return;
     if (replyTo) { t = "> " + who(replyTo.a).name + ": " + replyTo.t.slice(0, 80) + "\n" + t; clearReply(); }
     if (SRV.token && current.startsWith("dm:")) sendDM(current.slice(3), t);
-    else (STORE[current] ||= []).push({ a: USER.nick, t, time: nowTime() });
+    else if (SRV.token && current.startsWith("ch:")) sendChannel(current.slice(3), t);
+    else if (current) (STORE[current] ||= []).push({ a: USER.nick, t, time: nowTime() });
     input.value = ""; resize(); updateSend(); syncComposer(); $("typing").innerHTML = "";
     sendBtn.classList.add("fly"); setTimeout(() => sendBtn.classList.remove("fly"), 450);
     if (S.particles) burst(sendBtn);
@@ -2884,7 +2950,7 @@
   async function sendFileObj(file) {
     if (!USER) return;
     if (file.size > MAX_UPLOAD) return toast("Файл больше 25 МБ");
-    const local = !SRV.token || !current.startsWith("dm:");
+    const local = !SRV.token || !(current.startsWith("dm:") || current.startsWith("ch:"));
     if (local) {
       (STORE[current] ||= []).push({ a: USER.nick, t: "", time: nowTime(),
         file: { url: URL.createObjectURL(file), name: file.name, mime: file.type || "", size: file.size } });
@@ -2894,7 +2960,7 @@
     toast("Загружаю…");
     try {
       const up = await uploadFile(file);
-      sendDM(current.slice(3), "", null, 0, { url: up.url, name: up.name, mime: up.mime, size: up.size });
+      sendTo(current, "", null, 0, { url: up.url, name: up.name, mime: up.mime, size: up.size });
     } catch (e) { toast(e.message); }
   }
   const attachIn = document.createElement("input");
@@ -2975,7 +3041,7 @@
   }
   function sendVoice(data, dur) {
     if (!USER) return;
-    if (SRV.token && current.startsWith("dm:")) return sendDM(current.slice(3), "", data, dur);
+    if (SRV.token && (current.startsWith("dm:") || current.startsWith("ch:"))) return sendTo(current, "", data, dur);
     (STORE[current] ||= []).push({ a: USER.nick, t: "", audio: data, dur, time: nowTime() });
     render();
   }
@@ -3728,17 +3794,195 @@
   $("chOk").addEventListener("click", () => {
     const name = $("chName").value.trim();
     if (!name) { const f = $("chName"); f.classList.remove("shake"); void f.offsetWidth; f.classList.add("shake"); return toast("Введи название"); }
+    if (!activeSrv) return toast("Сначала выберите сервер");
+    if (!canDo("manageChannels")) return toast("Создавать каналы может владелец или роль с этим правом");
+    if (chType === "voice") return toast("Голосовые каналы пока недоступны");
     const key = name.toLowerCase().replace(/\s+/g, "-");
-    if (CHANNELS.some(g => g.items.some(c => c.n === key))) return toast("Такой канал уже есть");
-    const grp = CHANNELS.find(g => g.cat === $("chCat").value) || CHANNELS[0];
-    grp.items.push({ n: key, t: chType, priv: chPriv, avatar: chAvatar }); chAvatar = null;
-    if (chType === "text") STORE[key] = [];
-    renderChannels(); close("chScrim");
-    if (chType === "text") switchTo(key);
-    toast(`Канал ${chType === "voice" ? "🔊" : "#"}${key} создан`);
+    api("POST", "/api/servers/" + activeSrv.id + "/channels", { name: key }).then(async (r) => {
+      chAvatar = null; close("chScrim");
+      await loadServers();
+      switchTo("ch:" + r.channel.id);
+      toast("Канал #" + r.channel.name + " создан");
+    }).catch((e) => toast(e.message));
   });
   $("chName").addEventListener("keydown", e => { if (e.key === "Enter") $("chOk").click(); });
-  $("addServer").addEventListener("click", () => toast("Серверы — в следующей версии 🚧"));
+  /* ===== серверы: список, создание, вступление по коду, роли и участники ===== */
+  const PERM_LABELS = {
+    manageChannels: "Создавать и удалять каналы",
+    manageRoles: "Управлять ролями",
+    invite: "Приглашать по коду",
+    kick: "Исключать участников"
+  };
+  const canDo = (p) => !!(activeSrv && activeSrv.myPerms && activeSrv.myPerms.includes(p));
+  const srvSetOpen = () => $("srvSetScrim").classList.contains("open");
+  let srvMode = "create", srvEditRole = null;
+
+  function renderRail() {
+    $("srvList").innerHTML = SRV_LIST.map((s) => `<button class="server ${activeSrv && activeSrv.id === s.id ? "active" : ""}" data-srv="${s.id}" title="${esc(s.name)}">${esc((s.name || "?").trim()[0].toUpperCase())}</button>`).join("");
+  }
+  function applyActiveServer() {
+    if (!activeSrv) return;
+    $("srvTitle").textContent = activeSrv.name;
+    CHANNELS = [{ cat: "Текстовые", items: activeSrv.channels.map((c) => ({ n: "ch:" + c.id, label: c.name, t: "text" })) }];
+    renderRail(); renderChannels();
+  }
+  async function loadServers() {
+    const r = await api("GET", "/api/servers");
+    SRV_LIST = r.servers;
+    const again = activeSrv && SRV_LIST.find((s) => s.id === activeSrv.id);
+    const target = again ? again.id : (SRV_LIST[0] && SRV_LIST[0].id);
+    if (target) pickServer(target);
+    else {
+      activeSrv = null; CHANNELS = [];
+      $("srvTitle").textContent = "Серверы";
+      renderRail(); renderChannels();
+      current = "";
+      feed.innerHTML = '<div class="day">Создайте сервер или вступите по коду приглашения</div>';
+    }
+    if (socket && socket.connected) SRV_LIST.forEach((s) => s.channels.forEach((c) => socket.emit("channel:join", c.id)));
+    if (srvSetOpen() && activeSrv) renderSrvSettings();
+  }
+
+  function setSrvMode(v) {
+    srvMode = v;
+    document.querySelectorAll("#srvMode button").forEach((b) => b.classList.toggle("on", b.dataset.v === v));
+    $("srvCreateBox").style.display = v === "create" ? "" : "none";
+    $("srvJoinBox").style.display = v === "join" ? "" : "none";
+    $("srvOk").textContent = v === "create" ? "Создать" : "Вступить";
+  }
+  $("srvMode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setSrvMode(b.dataset.v); });
+  $("addServer").addEventListener("click", () => {
+    setSrvMode("create"); $("srvName").value = ""; $("srvCode").value = "";
+    open("srvAddScrim"); setTimeout(() => $("srvName").focus(), 300);
+  });
+  $("srvName").addEventListener("keydown", (e) => { if (e.key === "Enter") $("srvOk").click(); });
+  $("srvCode").addEventListener("keydown", (e) => { if (e.key === "Enter") $("srvOk").click(); });
+  $("srvOk").addEventListener("click", async () => {
+    try {
+      if (srvMode === "create") {
+        const name = $("srvName").value.trim();
+        if (name.length < 2) return toast("Название не короче 2 символов");
+        const r = await api("POST", "/api/servers", { name });
+        close("srvAddScrim");
+        await loadServers(); pickServer(r.server.id);
+        toast(`Сервер «${r.server.name}» создан`);
+      } else {
+        const code = $("srvCode").value.trim();
+        if (!code) return toast("Введите код приглашения");
+        const r = await api("POST", "/api/servers/join", { code });
+        close("srvAddScrim");
+        await loadServers(); pickServer(r.serverId);
+        toast("Вы вступили на сервер");
+      }
+    } catch (e) { toast(e.message); }
+  });
+
+  function renderSrvSettings() {
+    const s = activeSrv; if (!s) return;
+    const isOwner = s.owner === USER.nick;
+    $("srvSetTitle").textContent = s.name;
+    const invite = s.inviteCode
+      ? `<div class="srv-row"><span class="srv-code" style="flex:1">${esc(s.inviteCode)}</span><button class="btn btn-ghost" id="invCopy">Копировать</button>${canDo("invite") ? `<button class="btn btn-ghost" id="invNew">Новый код</button>` : ""}</div>`
+      : `<div class="srv-small">Код приглашения видят владелец и участники с правом приглашения</div>`;
+    const editing = s.roles.find((r) => r.id === srvEditRole);
+    const rolesHTML = s.roles.map((r) => `<button class="srv-chip ${srvEditRole === r.id ? "on" : ""}" data-role="${r.id}"><span class="srv-dot" style="background:${esc(r.color)}"></span>${r.emoji ? esc(r.emoji) + " " : ""}${esc(r.name)}</button>`).join("");
+    const form = canDo("manageRoles") ? `
+      <div class="srv-sec"><h3>${editing ? "Изменить роль" : "Новая роль"}</h3>
+        <div class="srv-form">
+          <input id="rName" maxlength="32" placeholder="Название роли" value="${esc(editing ? editing.name : "")}">
+          <input id="rEmoji" maxlength="8" placeholder="🎯" value="${esc(editing ? editing.emoji || "" : "")}" style="width:72px;flex:none">
+          <input id="rColor" type="color" value="${editing ? editing.color : "#5b8cff"}">
+        </div>
+        <div class="srv-perms">${Object.keys(PERM_LABELS).map((k) => `<label><input type="checkbox" data-perm="${k}" ${editing && editing.perms.includes(k) ? "checked" : ""}> ${PERM_LABELS[k]}</label>`).join("")}</div>
+        <div class="srv-chips" style="justify-content:flex-end;margin-top:10px">
+          ${editing && editing.id !== "everyone" ? `<button class="btn btn-danger" id="rDel">Удалить роль</button>` : ""}
+          ${editing ? `<button class="btn btn-ghost" id="rNew">Новая роль</button>` : ""}
+          <button class="btn btn-primary" id="rSave">${editing ? "Сохранить" : "Создать роль"}</button>
+        </div>
+      </div>` : "";
+    const membersHTML = s.members.map((m) => {
+      const p = profileOf(m.username);
+      const chips = s.roles.filter((r) => r.id !== "everyone").map((r) =>
+        `<button class="srv-chip ${m.roleIds.includes(r.id) ? "on" : ""}" data-mrole="${m.username}|${r.id}" ${canDo("manageRoles") && !m.owner ? "" : "disabled"}>${r.emoji ? esc(r.emoji) + " " : ""}${esc(r.name)}</button>`).join("");
+      const kick = canDo("kick") && !m.owner && m.username !== USER.nick ? `<button class="srv-x" data-kick="${esc(m.username)}" title="Исключить">✕</button>` : "";
+      return `<div class="srv-row"><div style="flex:1;min-width:0"><b>${esc(p.name)}</b> <span class="srv-small">@${esc(m.username)}</span>${m.owner ? " 👑" : ""}<div class="srv-chips" style="margin-top:6px">${m.owner ? '<span class="srv-small">Владелец: все права</span>' : (chips || '<span class="srv-small">Только базовая роль</span>')}</div></div>${kick}</div>`;
+    }).join("");
+    const chansHTML = s.channels.map((c) => `<div class="srv-row"><span style="flex:1"># ${esc(c.name)}</span>${canDo("manageChannels") ? `<button class="srv-x" data-delch="${c.id}" title="Удалить канал">🗑</button>` : ""}</div>`).join("") || '<div class="srv-small">Каналов пока нет</div>';
+    $("srvSetBody").innerHTML = `
+      <div class="srv-sec"><h3>Код приглашения</h3>${invite}</div>
+      <div class="srv-sec"><h3>Роли</h3><div class="srv-chips">${rolesHTML}</div></div>
+      ${form}
+      <div class="srv-sec"><h3>Участники · ${s.members.length}</h3>${membersHTML}</div>
+      <div class="srv-sec"><h3>Каналы</h3>${chansHTML}</div>`;
+    $("srvLeave").textContent = isOwner ? "Удалить сервер" : "Выйти с сервера";
+  }
+  $("srvTitle").addEventListener("click", () => {
+    if (!activeSrv) return;
+    srvEditRole = null;
+    $("srvSetTitle").textContent = activeSrv.name;
+    renderSrvSettings();
+    open("srvSetScrim");
+    Promise.all(activeSrv.members.map((m) => loadUserToCache(m.username))).then(() => { if (srvSetOpen()) renderSrvSettings(); });
+  });
+  $("srvSetBody").addEventListener("click", async (e) => {
+    const t = e.target.closest("button");
+    if (!t || !activeSrv) return;
+    const id = activeSrv.id;
+    try {
+      if (t.dataset.role) { srvEditRole = t.dataset.role; return renderSrvSettings(); }
+      if (t.id === "rNew") { srvEditRole = null; return renderSrvSettings(); }
+      if (t.id === "invCopy") {
+        await navigator.clipboard.writeText(activeSrv.inviteCode).catch(() => {});
+        return toast("Код скопирован");
+      }
+      if (t.id === "invNew") { await api("POST", `/api/servers/${id}/invite`); await loadServers(); return toast("Новый код создан"); }
+      if (t.id === "rSave") {
+        const body = {
+          name: $("rName").value.trim(),
+          color: $("rColor").value,
+          emoji: $("rEmoji").value.trim(),
+          perms: [...document.querySelectorAll("[data-perm]:checked")].map((x) => x.dataset.perm)
+        };
+        if (!body.name) return toast("Укажите название роли");
+        if (srvEditRole) await api("PATCH", `/api/servers/${id}/roles/${srvEditRole}`, body);
+        else await api("POST", `/api/servers/${id}/roles`, body);
+        srvEditRole = null; await loadServers(); return toast("Роль сохранена");
+      }
+      if (t.id === "rDel") {
+        await api("DELETE", `/api/servers/${id}/roles/${srvEditRole}`);
+        srvEditRole = null; await loadServers(); return toast("Роль удалена");
+      }
+      if (t.dataset.mrole) {
+        const [user, rid] = t.dataset.mrole.split("|");
+        const m = activeSrv.members.find((x) => x.username === user);
+        const next = m.roleIds.includes(rid) ? m.roleIds.filter((x) => x !== rid) : [...m.roleIds, rid];
+        await api("PUT", `/api/servers/${id}/members/${user}/roles`, { roleIds: next });
+        return loadServers();
+      }
+      if (t.dataset.kick) {
+        if (!confirm(`Исключить @${t.dataset.kick} с сервера?`)) return;
+        await api("DELETE", `/api/servers/${id}/members/${t.dataset.kick}`);
+        await loadServers(); return toast("Участник исключён");
+      }
+      if (t.dataset.delch) {
+        if (!confirm("Удалить канал вместе с сообщениями?")) return;
+        await api("DELETE", `/api/servers/${id}/channels/${t.dataset.delch}`);
+        await loadServers(); return toast("Канал удалён");
+      }
+    } catch (err) { toast(err.message); }
+  });
+  $("srvLeave").addEventListener("click", async () => {
+    if (!activeSrv) return;
+    const owner = activeSrv.owner === USER.nick;
+    if (!confirm(owner ? `Удалить сервер «${activeSrv.name}» вместе с каналами и сообщениями?` : `Выйти с сервера «${activeSrv.name}»?`)) return;
+    try {
+      if (owner) await api("DELETE", `/api/servers/${activeSrv.id}`);
+      else await api("POST", `/api/servers/${activeSrv.id}/leave`);
+      activeSrv = null; close("srvSetScrim");
+      await loadServers();
+      toast(owner ? "Сервер удалён" : "Вы вышли с сервера");
+    } catch (err) { toast(err.message); }
+  });
 
   /* ================= ТОСТЫ И ЭФФЕКТЫ ================= */
   function toast(msg) {
