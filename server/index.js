@@ -56,6 +56,7 @@ const ServerModel = mongoose.model('Server', new mongoose.Schema({
     rid: { type: String, required: true },
     name: { type: String, required: true, maxlength: 32 },
     color: { type: String, default: '#8a8fa8' },
+    emoji: { type: String, default: '' },
     perms: [{ type: String }]
   }],
   memberRoles: [{ user: { type: String, required: true }, roleIds: [{ type: String }] }],
@@ -101,7 +102,8 @@ const ALL_PERMS = ['manageChannels', 'manageRoles', 'invite', 'kick'];
 const EVERYONE = 'everyone'; // базовая роль, есть у всех участников
 const MAX_ROLES = 20;
 
-const defaultRoles = () => [{ rid: EVERYONE, name: 'Участник', color: '#8a8fa8', perms: [] }];
+const defaultRoles = () => [{ rid: EVERYONE, name: 'Участник', color: '#8a8fa8', emoji: '', perms: [] }];
+const cleanEmoji = (v) => String(v || '').trim().slice(0, 8);
 
 // Владелец имеет все права. Остальные — объединение прав всех своих ролей (включая базовую).
 function permsOf(guild, username) {
@@ -135,7 +137,7 @@ function guildView(guild, username, channels) {
     owner: guild.owner,
     myPerms: perms,
     inviteCode: perms.includes('invite') ? guild.inviteCode : undefined,
-    roles: guild.roles.map((r) => ({ id: r.rid, name: r.name, color: r.color, perms: r.perms })),
+    roles: guild.roles.map((r) => ({ id: r.rid, name: r.name, color: r.color, emoji: r.emoji || '', perms: r.perms })),
     members: guild.members.map((u) => ({
       username: u,
       owner: u === guild.owner,
@@ -463,7 +465,8 @@ app.post('/api/servers/:id/roles', auth, route(async (req, res) => {
   if (g.guild.roles.length >= MAX_ROLES) return res.status(400).json({ error: 'Слишком много ролей' });
   const color = COLOR_RE.test(req.body.color || '') ? req.body.color : '#8a8fa8';
   const perms = (Array.isArray(req.body.perms) ? req.body.perms : []).filter((p) => ALL_PERMS.includes(p));
-  g.guild.roles.push({ rid: crypto.randomBytes(6).toString('hex'), name, color, perms: [...new Set(perms)] });
+  const emoji = cleanEmoji(req.body.emoji);
+  g.guild.roles.push({ rid: crypto.randomBytes(6).toString('hex'), name, color, emoji, perms: [...new Set(perms)] });
   await g.guild.save();
   notifyGuild(g.guild);
   res.status(201).json({ server: guildView(g.guild, req.username) });
@@ -478,6 +481,7 @@ app.patch('/api/servers/:id/roles/:rid', auth, route(async (req, res) => {
   const b = req.body || {};
   if (typeof b.name === 'string' && b.name.trim()) role.name = b.name.trim().slice(0, 32);
   if (COLOR_RE.test(b.color || '')) role.color = b.color;
+  if (typeof b.emoji === 'string') role.emoji = cleanEmoji(b.emoji);
   if (Array.isArray(b.perms)) role.perms = [...new Set(b.perms.filter((p) => ALL_PERMS.includes(p)))];
   await g.guild.save();
   notifyGuild(g.guild);
