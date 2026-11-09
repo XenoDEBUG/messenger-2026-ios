@@ -811,8 +811,8 @@
   .srv-av { width:28px; height:28px; border-radius:9px; overflow:hidden; background:var(--grad); display:grid; place-items:center; flex:none; color:#fff; font-size:13px; font-weight:700; }
   .srv-input { flex:1; min-width:0; padding:9px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.15); background:rgba(0,0,0,.2); color:inherit; }
   .srv-link { background:none; border:none; color:inherit; cursor:pointer; text-decoration:underline; opacity:.8; padding:0; font-size:12px; }
-  .srv-gear { background:none; border:none; color:inherit; cursor:pointer; font-size:17px; opacity:.75; padding:4px 8px; margin-left:4px; }
-  .srv-gear:hover { opacity:1; }
+  .srv-gear { width:34px; height:34px; border-radius:11px; border:none; background:none; color:var(--text-2); cursor:pointer; display:grid; place-items:center; margin-left:auto; flex:none; transition:background .2s, color .2s, transform .2s; }
+  .srv-gear:hover { background:rgba(255,255,255,.08); color:var(--text); transform:rotate(30deg); }
   .srv-modal { max-height:86vh; overflow:auto; }
   .srv-sec { margin-top:18px; }
   .srv-sec h3 { font-size:12px; letter-spacing:.06em; text-transform:uppercase; opacity:.7; margin:0 0 8px; }
@@ -822,7 +822,9 @@
   .srv-chip.on { background:rgba(91,140,255,.35); border-color:transparent; }
   .srv-chip:disabled { cursor:default; opacity:.85; }
   .srv-dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
-  .srv-perms label { display:flex; gap:8px; align-items:center; font-size:13px; margin:5px 0; }
+  .srv-perms { display:flex; flex-direction:column; gap:6px; }
+  .srv-perms label { display:flex; flex-direction:row; align-items:center; justify-content:flex-start; gap:10px; width:auto; margin:0; padding:0; font-size:13px; font-weight:500; text-transform:none; letter-spacing:0; color:inherit; text-align:left; cursor:pointer; }
+  .srv-perms input[type=checkbox] { width:16px; height:16px; margin:0; padding:0; flex:none; accent-color:#5b8cff; }
   .srv-form { display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
   .srv-form input[type=text], .srv-form input:not([type]) { flex:1; min-width:120px; padding:9px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.15); background:rgba(0,0,0,.2); color:inherit; }
   .srv-form input[type=color] { width:44px; height:38px; border:none; background:none; padding:0; }
@@ -931,7 +933,7 @@
   </nav>
 
   <aside class="channels channels-wrap glass" data-panel="channels">
-    <div class="ch-head"><button class="burger mob-only" data-burger title="Серверы">‹</button><span id="srvTitle" class="srv-title" title="Настройки сервера">Серверы</span><button class="srv-gear" id="srvGear" title="Настройки сервера и код приглашения">⚙</button></div>
+    <div class="ch-head"><button class="burger mob-only" data-burger title="Серверы">‹</button><span id="srvTitle" class="srv-title" title="Настройки сервера">Серверы</span><button class="srv-gear" id="srvGear" title="Настройки сервера и код приглашения"></button></div>
     <div class="ch-body" id="chList"></div>
     <div class="me-wrap">
       <div class="pop" id="stPop"></div>
@@ -946,7 +948,6 @@
   <main class="chat glass" data-panel="chat">
     <header class="chat-head">
       <button class="burger mob-only" data-burger title="Серверы">‹</button><span class="hash">#</span><span class="title" id="chTitle">general</span>
-      <span class="topic">Тестовый канал для проверки интерфейса</span>
       <div class="tools"><button id="callVoice" title="Голосовой звонок"></button><button id="callVideo" title="Видеозвонок"></button><button title="Участники">👥</button><button title="Закрепы">📌</button><button title="Поиск">⌕</button></div>
     </header>
     <div class="friends-view" id="friendsView">
@@ -1872,6 +1873,7 @@
   const IC = {
     mic: `<path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>`,
     micoff: `<path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/><path d="M3 3l18 18"/>`,
+    gear: `<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>`,
     cam: `<rect x="3" y="7" width="12" height="10" rx="3"/><path d="M15 10.5l6-3.5v10l-6-3.5"/>`,
     screen: `<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>`,
     hand: `<path d="M9 11V5a1.5 1.5 0 0 1 3 0v5M12 10V3.5a1.5 1.5 0 0 1 3 0V10M15 10V5.5a1.5 1.5 0 0 1 3 0V14a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L3.6 13a1.5 1.5 0 0 1 2.4-1.7L9 14"/>`,
@@ -3965,6 +3967,7 @@
     open("srvSetScrim");
     Promise.all(activeSrv.members.map((m) => loadUserToCache(m.username))).then(() => { if (srvSetOpen()) renderSrvSettings(); });
   });
+  $("srvGear").innerHTML = svgI("gear", 18);
   $("srvGear").addEventListener("click", () => $("srvTitle").click());
   /* аватарки: картинка сжимается до 256 px, чтобы уместиться в запрос */
   let chAvTarget = null;
