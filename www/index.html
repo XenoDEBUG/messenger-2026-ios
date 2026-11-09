@@ -822,6 +822,7 @@
   .srv-small { font-size:12px; opacity:.7; }
   .srv-x { background:none; border:none; color:inherit; cursor:pointer; opacity:.7; font-size:15px; }
   .btn-danger { background:#e5484d; color:#fff; border:none; }
+  .cb.muted { background:rgba(229,72,77,.35); color:#fff; }
   #remoteVid { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .3s; }
   #remoteVid.on { opacity:1; }
   .incoming { position:fixed; inset:0; z-index:300; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.6); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
@@ -1860,6 +1861,7 @@
   /* ---------- Иконки, друзья, личные сообщения, звонки, профили ---------- */
   const IC = {
     mic: `<path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>`,
+    micoff: `<path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/><path d="M3 3l18 18"/>`,
     cam: `<rect x="3" y="7" width="12" height="10" rx="3"/><path d="M15 10.5l6-3.5v10l-6-3.5"/>`,
     screen: `<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>`,
     hand: `<path d="M9 11V5a1.5 1.5 0 0 1 3 0v5M12 10V3.5a1.5 1.5 0 0 1 3 0V10M15 10V5.5a1.5 1.5 0 0 1 3 0V14a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L3.6 13a1.5 1.5 0 0 1 2.4-1.7L9 14"/>`,
@@ -2174,6 +2176,14 @@
     document.querySelectorAll("#call .cb[data-cb]").forEach(b => {
       const k = b.dataset.cb;
       b.classList.toggle("on", k === "mic" ? CALL.mic : k === "cam" ? CALL.cam : k === "screen" ? CALL.screen : k === "hand" ? CALL.hand : false);
+      if (k === "mic") {
+        // выключенный микрофон: перечёркнутая иконка и красный фон
+        b.classList.toggle("muted", !CALL.mic);
+        b.innerHTML = svgI(CALL.mic ? "mic" : "micoff", 22);
+        b.title = CALL.mic ? "Выключить микрофон" : "Микрофон выключен, нажмите, чтобы включить";
+      }
+      if (k === "cam") b.title = CALL.cam ? "Выключить камеру" : "Включить камеру";
+      if (k === "screen") b.title = CALL.screen ? "Остановить демонстрацию" : "Демонстрация экрана";
     });
   }
   function openCall(title, people, video) {
@@ -3125,7 +3135,7 @@
   function watchRemoteTrack(t) {
     t.onmute = t.onunmute = t.onended = () => attachStream();
   }
-  function playAudio(key, stream) {
+  function ensureAudio(key) {
     let a = audioEls.get(key);
     if (!a) {
       a = document.createElement("audio");
@@ -3133,9 +3143,17 @@
       document.body.appendChild(a);
       audioEls.set(key, a);
     }
+    return a;
+  }
+  function playAudio(key, stream) {
+    const a = ensureAudio(key);
     if (a.srcObject !== stream) a.srcObject = stream;
     a.play().catch(() => {});
   }
+  // браузер или WebView может не запустить звук без нажатия: любое касание или клик его запускает
+  document.addEventListener("pointerdown", () => {
+    audioEls.forEach((a) => { if (a.srcObject && a.paused) a.play().catch(() => {}); });
+  }, true);
   function stopAudio(key) {
     const a = audioEls.get(key);
     if (a) { a.srcObject = null; a.remove(); audioEls.delete(key); }
@@ -3253,6 +3271,7 @@
   }
   function hideIncoming() { $("incomingCall").classList.remove("open"); }
   async function acceptCall() {
+    ensureAudio("rtc").play().catch(() => {}); // внутри нажатия «Ответить» звук разрешён
     if (gc.incoming) return acceptGroup();
     const inc = rtc.incoming;
     if (!inc) return;
@@ -3360,7 +3379,7 @@
         rtc.screenTrack.onended = () => { rtc.screenTrack = null; rtc.vSender.replaceTrack(rtc.videoTrack); CALL.screen = false; updateCallBar(); attachStream(); };
         await rtc.vSender.replaceTrack(rtc.screenTrack);
         CALL.screen = true; CALL.cam = false;
-      } catch (e) { toast("Демонстрация экрана недоступна здесь"); }
+      } catch (e) { toast("Демонстрация экрана недоступна: " + (e.name || e.message)); }
     }
     attachStream();
   }

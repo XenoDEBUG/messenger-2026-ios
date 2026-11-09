@@ -63,7 +63,8 @@ function allowMedia() {
   // Демонстрация экрана: отдаём основной экран без системного диалога.
   session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
     desktopCapturer.getSources({ types: ["screen"] }).then((sources) => {
-      if (sources.length) callback({ video: sources[0], audio: "loopback" });
+      // страница просит только видео экрана, поэтому звук не передаём
+      if (sources.length) callback({ video: sources[0] });
       else callback({});
     }).catch(() => callback({}));
   });
