@@ -2,8 +2,6 @@ name: Android APK
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 
 jobs:
   build:
@@ -18,17 +16,40 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: '17'
 
       - name: Install JS packages
         run: npm install
+
+      - name: Point app to server (API_BASE) for Android
+        run: |
+          python3 - <<'PY'
+          import re, sys
+          p = 'www/index.html'
+          s = open(p, encoding='utf-8').read()
+          server = 'http://212.80.7.210:20107'
+          new_line = ('const API_BASE = (location.hostname === "localhost" || location.protocol === "file:" || location.protocol === "capacitor:") '
+                      '? "%s" : "";') % server
+          s, n = re.subn(r'^[ \t]*const API_BASE\s*=.*$', lambda m: new_line, s, count=1, flags=re.M)
+          if n == 0:
+              print('ERROR: строка const API_BASE не найдена в www/index.html')
+              sys.exit(1)
+          s, k = re.subn(r'\bio\(\s*\)', 'io(API_BASE || undefined)', s)
+          s, m = re.subn(r'\bio\(\s*\{', 'io(API_BASE || undefined, {', s)
+          print('io() заменено:', k, '| io({ заменено:', m)
+          open(p, 'w', encoding='utf-8').write(s)
+          PY
+
+      - name: Allow http to server in capacitor.config.json
+        run: |
+          node -e "const fs=require('fs');const f='capacitor.config.json';const c=JSON.parse(fs.readFileSync(f,'utf8'));c.android=Object.assign({},c.android,{allowMixedContent:true});fs.writeFileSync(f,JSON.stringify(c,null,2));"
 
       - name: Add Android project if missing
         run: |
           if [ ! -d android ]; then npx cap add android; fi
           npx cap sync android
 
-      - name: Permissions and http to server
+      - name: Permissions and cleartext traffic
         run: |
           python3 - <<'PY'
           import re
@@ -37,9 +58,9 @@ jobs:
           perms = ['android.permission.INTERNET', 'android.permission.RECORD_AUDIO',
                    'android.permission.CAMERA', 'android.permission.MODIFY_AUDIO_SETTINGS']
           add = ''.join('    <uses-permission android:name="%s" />\n' % x for x in perms if x not in s)
-          s = re.sub(r'(<manifest[^>]*>\n)', lambda m: m.group(1) + add, s, count=1)
+          s = re.sub(r'(<manifest[^>]*>)', lambda m: m.group(1) + '\n' + add.rstrip('\n'), s, count=1)
           if 'usesCleartextTraffic' not in s:
-              s = s.replace('<application ', '<application android:usesCleartextTraffic="true" ', 1)
+              s = re.sub(r'<application\b', '<application android:usesCleartextTraffic="true"', s, count=1)
           open(p, 'w', encoding='utf-8').write(s)
           PY
 
