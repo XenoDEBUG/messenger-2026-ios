@@ -1,5 +1,18 @@
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, session } = require("electron");
 const path = require("path");
+
+// Страница открывается из файла, поэтому браузер считает её безопасной:
+// микрофон и камера для голосовых и звонков работают без https.
+const MEDIA_PERMISSIONS = ["media", "audioCapture", "videoCapture", "notifications"];
+
+function allowMedia() {
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(MEDIA_PERMISSIONS.includes(permission));
+  });
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => {
+    return MEDIA_PERMISSIONS.includes(permission);
+  });
+}
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -16,6 +29,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  allowMedia();
   createWindow();
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
