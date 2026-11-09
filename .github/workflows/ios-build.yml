@@ -29,6 +29,11 @@ jobs:
           /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" "$P" || true
           /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true" "$P" || true
 
+      - name: Microphone permission
+        run: |
+          P=ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Microphone for voice messages'" "$P" || /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Microphone for voice messages'" "$P"
+
       - name: Install CocoaPods
         run: cd ios/App && pod install
 
