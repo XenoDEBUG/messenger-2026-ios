@@ -3291,6 +3291,8 @@
       const local = await getLocal(inc.video);
       makePC(inc.from, false);
       await rtc.pc.setRemoteDescription(inc.offer);
+      // без этого ответ уходит как «только приём»: собеседник не слышит и не видит принимающего
+      rtc.pc.getTransceivers().forEach((t) => { t.direction = "sendrecv"; });
       refSenders();
       await attachLocal(local);
       await flushIce();
@@ -3485,6 +3487,7 @@
         if (gc.peers.has(from)) dropGroupPeer(from);
         const peer = makeGroupPC(from);
         await peer.pc.setRemoteDescription(data.sdp);
+        peer.pc.getTransceivers().forEach((t) => { t.direction = "sendrecv"; });
         bindPeerTracks(peer);
         await flushGroupIce(from);
         const ans = await peer.pc.createAnswer();
