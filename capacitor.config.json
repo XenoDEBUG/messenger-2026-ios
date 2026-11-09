@@ -1,9 +1,5 @@
 {
   "appId": "com.xeno.messenger",
   "appName": "Messenger",
-  "webDir": "www",
-  "server": {
-    "url": "http://212.80.7.210:20107",
-    "cleartext": true
-  }
+  "webDir": "www"
 }
