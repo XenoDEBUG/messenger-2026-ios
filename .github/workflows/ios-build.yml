@@ -34,6 +34,11 @@ jobs:
           P=ios/App/App/Info.plist
           /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Microphone for voice messages'" "$P" || /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Microphone for voice messages'" "$P"
 
+      - name: Camera permission
+        run: |
+          P=ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Camera for video calls'" "$P" || /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Camera for video calls'" "$P"
+
       - name: Install CocoaPods
         run: cd ios/App && pod install
 
