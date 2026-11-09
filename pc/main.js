@@ -72,8 +72,11 @@ function allowMedia() {
 
 function createWindow() {
   mainWin = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    width: 1200,
+    height: 760,
+    center: true,
+    fullscreen: false,
+    fullscreenable: true,
     minWidth: 700,
     minHeight: 500,
     title: "Messenger 2026",
