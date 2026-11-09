@@ -805,6 +805,12 @@
   .sys-msg { text-align:center; margin:12px auto; font-size:12px; color:var(--muted, #8b93b8); background:rgba(255,255,255,.06); border-radius:999px; padding:5px 14px; width:fit-content; max-width:90%; }
   .srv-list { display:flex; flex-direction:column; gap:8px; }
   .srv-title { cursor:pointer; }
+  .srv-avbox { width:64px; height:64px; border-radius:20px; background:var(--grad); border:none; color:#fff; font-size:24px; font-weight:700; overflow:hidden; padding:0; cursor:pointer; flex:none; display:grid; place-items:center; }
+  .srv-avbox img, .srv-av img, .server img, .chav { width:100%; height:100%; object-fit:cover; }
+  .server img { border-radius:inherit; }
+  .srv-av { width:28px; height:28px; border-radius:9px; overflow:hidden; background:var(--grad); display:grid; place-items:center; flex:none; color:#fff; font-size:13px; font-weight:700; }
+  .srv-input { flex:1; min-width:0; padding:9px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.15); background:rgba(0,0,0,.2); color:inherit; }
+  .srv-link { background:none; border:none; color:inherit; cursor:pointer; text-decoration:underline; opacity:.8; padding:0; font-size:12px; }
   .srv-gear { background:none; border:none; color:inherit; cursor:pointer; font-size:17px; opacity:.75; padding:4px 8px; margin-left:4px; }
   .srv-gear:hover { opacity:1; }
   .srv-modal { max-height:86vh; overflow:auto; }
@@ -1174,6 +1180,8 @@
   <div class="modal srv-modal" style="width:min(640px,96vw)">
     <h2 id="srvSetTitle">Сервер</h2>
     <div id="srvSetBody"></div>
+    <input type="file" id="srvAvFile" accept="image/*" hidden>
+    <input type="file" id="chAvFile" accept="image/*" hidden>
     <div class="row"><button class="btn btn-ghost" data-close="srvSetScrim">Закрыть</button><button class="btn btn-danger" id="srvLeave">Выйти</button></div>
   </div>
 </div>
@@ -3839,12 +3847,12 @@
   let srvMode = "create", srvEditRole = null;
 
   function renderRail() {
-    $("srvList").innerHTML = SRV_LIST.map((s) => `<button class="server ${activeSrv && activeSrv.id === s.id ? "active" : ""}" data-srv="${s.id}" title="${esc(s.name)}">${esc((s.name || "?").trim()[0].toUpperCase())}</button>`).join("");
+    $("srvList").innerHTML = SRV_LIST.map((s) => `<button class="server ${activeSrv && activeSrv.id === s.id ? "active" : ""}" data-srv="${s.id}" title="${esc(s.name)}">${s.avatar ? `<img src="${s.avatar}" alt="">` : esc((s.name || "?").trim()[0].toUpperCase())}</button>`).join("");
   }
   function applyActiveServer() {
     if (!activeSrv) return;
     $("srvTitle").textContent = activeSrv.name;
-    CHANNELS = [{ cat: "Текстовые", items: activeSrv.channels.map((c) => ({ n: "ch:" + c.id, label: c.name, t: "text" })) }];
+    CHANNELS = [{ cat: "Текстовые", items: activeSrv.channels.map((c) => ({ n: "ch:" + c.id, label: c.name, t: "text", avatar: c.avatar || null })) }];
     renderRail(); renderChannels();
   }
   async function loadServers() {
@@ -3928,8 +3936,17 @@
       const kick = canDo("kick") && !m.owner && m.username !== USER.nick ? `<button class="srv-x" data-kick="${esc(m.username)}" title="Исключить">✕</button>` : "";
       return `<div class="srv-row"><div style="flex:1;min-width:0"><b>${esc(p.name)}</b> <span class="srv-small">@${esc(m.username)}</span>${m.owner ? " 👑" : ""}<div class="srv-chips" style="margin-top:6px">${m.owner ? '<span class="srv-small">Владелец: все права</span>' : (chips || '<span class="srv-small">Только базовая роль</span>')}</div></div>${kick}</div>`;
     }).join("");
-    const chansHTML = s.channels.map((c) => `<div class="srv-row"><span style="flex:1"># ${esc(c.name)}</span>${canDo("manageChannels") ? `<button class="srv-x" data-delch="${c.id}" title="Удалить канал">🗑</button>` : ""}</div>`).join("") || '<div class="srv-small">Каналов пока нет</div>';
+    const chansHTML = s.channels.map((c) => `<div class="srv-row"><span class="srv-av">${c.avatar ? `<img src="${c.avatar}" alt="">` : "#"}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis"># ${esc(c.name)}</span>${canDo("manageChannels") ? `<button class="srv-x" data-chav="${c.id}" title="Аватарка канала">🖼</button><button class="srv-x" data-chren="${c.id}" data-name="${esc(c.name)}" title="Переименовать">✎</button><button class="srv-x" data-delch="${c.id}" title="Удалить канал">🗑</button>` : ""}</div>`).join("") || '<div class="srv-small">Каналов пока нет</div>';
+    const serverSec = isOwner ? `<div class="srv-sec"><h3>Сервер</h3>
+      <div class="srv-row" style="gap:12px">
+        <button class="srv-avbox" id="sAvBtn" title="Сменить аватарку">${s.avatar ? `<img src="${s.avatar}" alt="">` : esc((s.name || "?").trim()[0].toUpperCase())}</button>
+        <input id="sName" class="srv-input" maxlength="40" value="${esc(s.name)}">
+        <button class="btn btn-primary" id="sSave">Сохранить</button>
+      </div>
+      <div class="srv-small" style="margin-top:6px">${s.avatar ? '<button class="srv-link" id="sAvDel">Убрать аватарку</button>' : "Нажмите на картинку, чтобы выбрать аватарку"}</div>
+    </div>` : "";
     $("srvSetBody").innerHTML = `
+      ${serverSec}
       <div class="srv-sec"><h3>Код приглашения</h3>${invite}</div>
       <div class="srv-sec"><h3>Роли</h3><div class="srv-chips">${rolesHTML}</div></div>
       ${form}
@@ -3946,11 +3963,65 @@
     Promise.all(activeSrv.members.map((m) => loadUserToCache(m.username))).then(() => { if (srvSetOpen()) renderSrvSettings(); });
   });
   $("srvGear").addEventListener("click", () => $("srvTitle").click());
+  /* аватарки: картинка сжимается до 256 px, чтобы уместиться в запрос */
+  let chAvTarget = null;
+  function imageToAvatar(file, size = 256) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const k = Math.min(1, size / Math.max(img.width, img.height));
+        const c = document.createElement("canvas");
+        c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Не удалось прочитать картинку")); };
+      img.src = url;
+    });
+  }
+  $("srvAvFile").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; e.target.value = "";
+    if (!f || !activeSrv) return;
+    try {
+      const avatar = await imageToAvatar(f);
+      await api("PATCH", `/api/servers/${activeSrv.id}`, { avatar });
+      await loadServers(); toast("Аватарка сервера обновлена");
+    } catch (err) { toast(err.message); }
+  });
+  $("chAvFile").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; e.target.value = "";
+    if (!f || !activeSrv || !chAvTarget) return;
+    try {
+      const avatar = await imageToAvatar(f);
+      await api("PATCH", `/api/servers/${activeSrv.id}/channels/${chAvTarget}`, { avatar });
+      await loadServers(); toast("Аватарка канала обновлена");
+    } catch (err) { toast(err.message); }
+  });
   $("srvSetBody").addEventListener("click", async (e) => {
     const t = e.target.closest("button");
     if (!t || !activeSrv) return;
     const id = activeSrv.id;
     try {
+      if (t.id === "sAvBtn") return $("srvAvFile").click();
+      if (t.id === "sSave") {
+        const name = $("sName").value.trim();
+        if (name.length < 2) return toast("Название не короче 2 символов");
+        await api("PATCH", `/api/servers/${id}`, { name });
+        await loadServers(); return toast("Название сохранено");
+      }
+      if (t.id === "sAvDel") {
+        await api("PATCH", `/api/servers/${id}`, { avatar: null });
+        await loadServers(); return toast("Аватарка убрана");
+      }
+      if (t.dataset.chav) { chAvTarget = t.dataset.chav; return $("chAvFile").click(); }
+      if (t.dataset.chren) {
+        const name = prompt("Новое название канала", t.dataset.name);
+        if (!name || !name.trim()) return;
+        await api("PATCH", `/api/servers/${id}/channels/${t.dataset.chren}`, { name: name.trim() });
+        await loadServers(); return toast("Канал переименован");
+      }
       if (t.dataset.role) { srvEditRole = t.dataset.role; return renderSrvSettings(); }
       if (t.id === "rNew") { srvEditRole = null; return renderSrvSettings(); }
       if (t.id === "invCopy") {

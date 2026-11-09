@@ -50,6 +50,7 @@ const User = mongoose.model('User', new mongoose.Schema({
 const ServerModel = mongoose.model('Server', new mongoose.Schema({
   name: { type: String, required: true, maxlength: 40 },
   owner: { type: String, required: true },
+  avatar: { type: String, default: null },
   inviteCode: { type: String, required: true, unique: true },
   members: [{ type: String }],
   roles: [{
@@ -67,6 +68,7 @@ const ServerModel = mongoose.model('Server', new mongoose.Schema({
 const Channel = mongoose.model('Channel', new mongoose.Schema({
   serverId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
   name: { type: String, required: true, maxlength: 32 },
+  avatar: { type: String, default: null },
   createdAt: { type: Date, default: Date.now }
 }));
 
@@ -104,6 +106,8 @@ const MAX_ROLES = 20;
 
 const defaultRoles = () => [{ rid: EVERYONE, name: 'Участник', color: '#8a8fa8', emoji: '', perms: [] }];
 const cleanEmoji = (v) => String(v || '').trim().slice(0, 8);
+// Аватарка: картинка в data-URL до 600 КБ (клиент сжимает до 256 px)
+const isAvatarData = (v) => typeof v === 'string' && v.startsWith('data:image/') && v.length <= 600000;
 
 // Владелец имеет все права. Остальные — объединение прав всех своих ролей (включая базовую).
 function permsOf(guild, username) {
@@ -135,6 +139,7 @@ function guildView(guild, username, channels) {
     id: guild._id.toString(),
     name: guild.name,
     owner: guild.owner,
+    avatar: guild.avatar || null,
     myPerms: perms,
     inviteCode: perms.includes('invite') ? guild.inviteCode : undefined,
     roles: guild.roles.map((r) => ({ id: r.rid, name: r.name, color: r.color, emoji: r.emoji || '', perms: r.perms })),
@@ -143,7 +148,7 @@ function guildView(guild, username, channels) {
       owner: u === guild.owner,
       roleIds: mrById.get(u) || []
     })),
-    channels: (channels || []).map((c) => ({ id: c._id.toString(), name: c.name }))
+    channels: (channels || []).map((c) => ({ id: c._id.toString(), name: c.name, avatar: c.avatar || null }))
   };
 }
 
@@ -406,6 +411,54 @@ app.post('/api/servers/:id/leave', auth, route(async (req, res) => {
   });
   notifyGuild(g.guild, [req.username]);
   res.json({ ok: true });
+}));
+
+// Название и аватарка сервера (только владелец)
+app.patch('/api/servers/:id', auth, route(async (req, res) => {
+  const g = await loadGuild(req.params.id, req.username);
+  if (g.error) return res.status(g.status).json({ error: g.error });
+  if (g.guild.owner !== req.username) return res.status(403).json({ error: 'Менять сервер может только владелец' });
+  const b = req.body || {};
+  if (typeof b.name === 'string') {
+    const name = b.name.trim().slice(0, 40);
+    if (name.length < 2) return res.status(400).json({ error: 'Название не короче 2 символов' });
+    g.guild.name = name;
+  }
+  if (b.avatar === null) g.guild.avatar = null;
+  else if (b.avatar !== undefined) {
+    if (!isAvatarData(b.avatar)) return res.status(400).json({ error: 'Картинка слишком большая или неверного формата' });
+    g.guild.avatar = b.avatar;
+  }
+  await g.guild.save();
+  const channels = await Channel.find({ serverId: g.guild._id }).sort({ createdAt: 1 });
+  notifyGuild(g.guild);
+  res.json({ server: guildView(g.guild, req.username, channels) });
+}));
+
+// Название и аватарка канала (право manageChannels)
+app.patch('/api/servers/:id/channels/:chId', auth, route(async (req, res) => {
+  const g = await loadGuild(req.params.id, req.username, 'manageChannels');
+  if (g.error) return res.status(g.status).json({ error: g.error });
+  if (!mongoose.isValidObjectId(req.params.chId)) return res.status(400).json({ error: 'Неверный канал' });
+  const channel = await Channel.findOne({ _id: req.params.chId, serverId: g.guild._id });
+  if (!channel) return res.status(404).json({ error: 'Канал не найден' });
+  const b = req.body || {};
+  if (typeof b.name === 'string') {
+    const name = b.name.trim().toLowerCase().replace(/\s+/g, '-');
+    if (!CHANNEL_RE.test(name)) return res.status(400).json({ error: 'Название канала: латиница, цифры, - и _' });
+    if (await Channel.exists({ serverId: g.guild._id, name, _id: { $ne: channel._id } })) {
+      return res.status(409).json({ error: 'Такой канал уже есть' });
+    }
+    channel.name = name;
+  }
+  if (b.avatar === null) channel.avatar = null;
+  else if (b.avatar !== undefined) {
+    if (!isAvatarData(b.avatar)) return res.status(400).json({ error: 'Картинка слишком большая или неверного формата' });
+    channel.avatar = b.avatar;
+  }
+  await channel.save();
+  notifyGuild(g.guild);
+  res.json({ channel: { id: channel._id.toString(), name: channel.name, avatar: channel.avatar || null } });
 }));
 
 // Удаление сервера (только владелец): вместе с каналами и сообщениями
