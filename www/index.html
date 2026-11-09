@@ -805,6 +805,8 @@
   .sys-msg { text-align:center; margin:12px auto; font-size:12px; color:var(--muted, #8b93b8); background:rgba(255,255,255,.06); border-radius:999px; padding:5px 14px; width:fit-content; max-width:90%; }
   .srv-list { display:flex; flex-direction:column; gap:8px; }
   .srv-title { cursor:pointer; }
+  .srv-gear { background:none; border:none; color:inherit; cursor:pointer; font-size:17px; opacity:.75; padding:4px 8px; margin-left:4px; }
+  .srv-gear:hover { opacity:1; }
   .srv-modal { max-height:86vh; overflow:auto; }
   .srv-sec { margin-top:18px; }
   .srv-sec h3 { font-size:12px; letter-spacing:.06em; text-transform:uppercase; opacity:.7; margin:0 0 8px; }
@@ -923,7 +925,7 @@
   </nav>
 
   <aside class="channels channels-wrap glass" data-panel="channels">
-    <div class="ch-head"><button class="burger mob-only" data-burger title="Серверы">‹</button><span id="srvTitle" class="srv-title" title="Настройки сервера">Серверы</span></div>
+    <div class="ch-head"><button class="burger mob-only" data-burger title="Серверы">‹</button><span id="srvTitle" class="srv-title" title="Настройки сервера">Серверы</span><button class="srv-gear" id="srvGear" title="Настройки сервера и код приглашения">⚙</button></div>
     <div class="ch-body" id="chList"></div>
     <div class="me-wrap">
       <div class="pop" id="stPop"></div>
@@ -3943,6 +3945,7 @@
     open("srvSetScrim");
     Promise.all(activeSrv.members.map((m) => loadUserToCache(m.username))).then(() => { if (srvSetOpen()) renderSrvSettings(); });
   });
+  $("srvGear").addEventListener("click", () => $("srvTitle").click());
   $("srvSetBody").addEventListener("click", async (e) => {
     const t = e.target.closest("button");
     if (!t || !activeSrv) return;
