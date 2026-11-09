@@ -1237,6 +1237,7 @@
 <div class="toasts" id="toasts"></div>
 
 <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+<script src="badges.js"></script>
 <script>
   /* ===================== СЕРВЕР ===================== */
   const SRV = { token: localStorage.getItem("mtoken") || "" };
@@ -1255,7 +1256,7 @@
     try {
       const r = await api("PATCH", "/api/me", payload);
       lastSaved = json;
-      USER.verified = r.user.verified;
+      USER.verified = r.user.verified; USER.badges = r.user.badges || [];
     } catch (e) { toast("Не сохранилось: " + e.message); }
   }
   function saveProfileSoon() {
@@ -1287,12 +1288,12 @@
   }
   const gradFor = (name) => GRADS[name.length % GRADS.length];
   function toUser(u) {
-    return { name: u.displayName || u.username, nick: u.username, verified: !!u.verified, color: u.color || null,
+    return { name: u.displayName || u.username, nick: u.username, verified: !!u.verified, badges: u.badges || [], color: u.color || null,
       g: u.g || gradFor(u.username), avatar: u.avatar || null, banner: u.banner || null, decor: u.decor || null,
       links: u.links || {}, custom: u.custom || null, st: u.st || "online", bio: u.bio || "" };
   }
   function cacheUser(u) {
-    SRVU[u.username] = { name: u.displayName || u.username, nick: u.username, verified: !!u.verified,
+    SRVU[u.username] = { name: u.displayName || u.username, nick: u.username, verified: !!u.verified, badges: u.badges || [],
       g: u.g || gradFor(u.username), avatar: u.avatar || null, bn: u.banner || u.g || gradFor(u.username),
       decor: u.decor || null, links: u.links || {}, custom: u.custom || null, st: u.st || "online", bio: u.bio || "" };
   }
@@ -1520,7 +1521,7 @@
   const seeded = Promise.resolve();
 
   function who(nick) {
-    if (USER && nick === USER.nick) return { name: USER.name, g: USER.g, avatar: USER.avatar, st: USER.st, nick: USER.nick, self: true, verified: USER.verified };
+    if (USER && nick === USER.nick) return { name: USER.name, g: USER.g, avatar: USER.avatar, st: USER.st, nick: USER.nick, self: true, verified: USER.verified, badges: USER.badges };
     if (SRVU[nick]) return { ...SRVU[nick], self: false };
     const m = MEMBERS.find(x => x.nick === nick);
     return m ? { name: m.name, g: m.g, avatar: null, st: m.st, nick, custom: m.custom } : { name: nick, g: GRADS[0], st: "online", nick };
@@ -1910,7 +1911,7 @@
 
   function profileOf(nick) {
     if (SRVU[nick] && !(USER && nick === USER.nick)) return { ...SRVU[nick], nick, act: null, self: false };
-    if (USER && nick === USER.nick) return { nick, verified: USER.verified, name: USER.name, bio: USER.bio || "", links: USER.links || {}, g: USER.g, avatar: USER.avatar, st: USER.st, custom: USER.custom, bn: USER.banner || USER.g, color: USER.color, self: true, decor: USER.decor, act: liveOn ? liveAct : null };
+    if (USER && nick === USER.nick) return { nick, verified: USER.verified, badges: USER.badges, name: USER.name, bio: USER.bio || "", links: USER.links || {}, g: USER.g, avatar: USER.avatar, st: USER.st, custom: USER.custom, bn: USER.banner || USER.g, color: USER.color, self: true, decor: USER.decor, act: liveOn ? liveAct : null };
     const m = MEMBERS.find(x => x.nick === nick) || { nick, name: nick, g: GRADS[0], st: "online" };
     const d = PDEMO[nick] || { bio: "", links: {}, bn: m.g };
     return { nick, name: m.name || nick, bio: d.bio, links: d.links, g: m.g, avatar: null, st: m.st, custom: m.custom, bn: d.bn, decor: d.decor, act: d.act };
@@ -1991,7 +1992,7 @@
       ? `<button data-act="cancel" data-n="${n}" title="Отменить">${svgI("x", 18)}</button>`
       : `<button data-act="msg" data-n="${n}" title="Написать">${svgI("msg", 18)}</button><button data-act="call" data-n="${n}" title="Позвонить">${svgI("phone", 18)}</button><button data-act="video" data-n="${n}" title="Видеозвонок">${svgI("cam", 18)}</button><button data-act="prof" data-n="${n}" title="Профиль">${svgI("user", 18)}</button>`;
     const label = kind === "in" ? "Входящая заявка" : kind === "out" ? "Заявка отправлена" : `@${esc(n)} · ${STATUSES[p.st].label}`;
-    return `<div class="fr-row"><div class="av" style="background:${p.avatar ? "none" : p.g}">${avHTML(p)}<span class="dot" style="${dotStyle(p.st)}"></span></div><div class="fr-info"><b>${esc(p.name)}${p.verified ? VB : ""}<span class="un">@${esc(p.nick)}</span></b><span>${label}</span></div><div class="fr-acts">${acts}</div></div>`;
+    return `<div class="fr-row"><div class="av" style="background:${p.avatar ? "none" : p.g}">${avHTML(p)}<span class="dot" style="${dotStyle(p.st)}"></span></div><div class="fr-info"><b>${esc(p.name)}${badgesHTML(p)}<span class="un">@${esc(p.nick)}</span></b><span>${label}</span></div><div class="fr-acts">${acts}</div></div>`;
   }
   async function addFriend(raw) {
     const n = raw.trim().replace(/^@/, "").toLowerCase();
@@ -2059,7 +2060,7 @@
     $("pfAv").style.background = p.avatar ? "none" : p.g;
     $("pfAv").style.boxShadow = p.color ? `0 0 0 4px #0c1229, 0 0 0 6px ${p.color}99, 0 10px 28px ${p.color}40` : "";
     $("pfAv").innerHTML = avHTML(p) + `<span class="dot" style="${dotStyle(p.st)}"></span>`;
-    $("pfName").innerHTML = esc(p.name) + (p.verified ? VB : "");
+    $("pfName").innerHTML = esc(p.name) + badgesHTML(p);
     $("pfNick").innerHTML = `@${esc(n)} · ${STATUSES[p.st].label}${p.custom ? " · " + esc(p.custom.e) + " " + esc(p.custom.t) : ""}`;
     $("pfBio").textContent = p.bio || (self ? "Добавь пару слов в настройках" : "Пока без описания");
     $("pfAct").innerHTML = p.act ? actText(p.act) : "";
@@ -2714,7 +2715,7 @@
     if (!USER) return;
     $("meAv").innerHTML = avHTML(USER) + `<span class="dot ${statusDot(USER.st)} ${USER.st === "online" ? "pulse" : ""}" style="${dotStyle(USER.st)}"></span>`;
     $("meAv").style.background = USER.avatar ? "none" : USER.g;
-    $("meName").innerHTML = esc(USER.name) + (USER.verified ? VB : "") + `<span class="un">@${esc(USER.nick)}</span>`;
+    $("meName").innerHTML = esc(USER.name) + badgesHTML(USER) + `<span class="un">@${esc(USER.nick)}</span>`;
     $("meSub").innerHTML = (liveOn && liveAct) ? actText(liveAct) : USER.custom ? `${esc(USER.custom.e)} ${esc(USER.custom.t)}` : STATUSES[USER.st].label;
   }
   function renderMembersOld() {
@@ -2772,7 +2773,7 @@
       const actions = `<div class="actions" data-i="${i}"><button data-act="react" title="Реакция">${I26("react")}</button><button data-act="reply" title="Ответить">${I26("reply")}</button><button data-act="more" title="Ещё">${I26("more")}</button></div>`;
       if (cont) html += `<div class="msg cont" ${delay}><span class="stamp">${m.time}</span><div class="av"></div><div class="body">${bodyHTML(m)}${tickHTML(m)}${reacts}</div>${actions}</div>`;
       else html += `<div class="msg" ${delay}><div class="av" style="background:${p.avatar ? "none" : p.g}">${p.avatar ? `<img src="${p.avatar}" alt="">` : initial(p.name)}${decoHTML(decorOf(m.a))}</div>
-        <div class="body"><div class="head"><span class="author">${esc(p.name)}${p.verified ? VB : ""}</span><span class="nick">@${esc(p.nick)}</span><span class="time">${m.time}</span></div>${bodyHTML(m)}${tickHTML(m)}${reacts}</div>${actions}</div>`;
+        <div class="body"><div class="head"><span class="author">${esc(p.name)}${badgesHTML(p)}</span><span class="nick">@${esc(p.nick)}</span><span class="time">${m.time}</span></div>${bodyHTML(m)}${tickHTML(m)}${reacts}</div>${actions}</div>`;
       prev = m;
     });
     feed.innerHTML = html;
