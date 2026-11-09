@@ -13,6 +13,32 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Messenger 2026</title>
 <style>
+   /* Выравнивание своих и чужих сообщений */
+  .msg.mine { flex-direction: row-reverse; text-align: right; }
+  .msg.mine .body { align-items: flex-end; }
+  .msg.mine .head { flex-direction: row-reverse; }
+  .msg.mine .text { 
+    background: var(--grad); 
+    color: #fff; 
+    padding: 10px 14px; 
+    border-radius: 16px 4px 16px 16px; 
+    display: inline-block; 
+    text-align: left; 
+  }
+  .msg.mine .quote { 
+    border-left: none; 
+    border-right: 3px solid var(--a3); 
+    border-radius: 12px 4px 4px 12px; 
+    background: linear-gradient(-90deg, color-mix(in srgb, var(--a1) 14%, transparent), rgba(255,255,255,.03)); 
+  }
+  .msg:not(.mine) .text { 
+    background: rgba(255, 255, 255, 0.05); 
+    padding: 10px 14px; 
+    border-radius: 4px 16px 16px 16px; 
+    display: inline-block; 
+    text-align: left; 
+  }
+  .msg.mine .actions { right: auto; left: 12px; }
   :root, [data-theme="ocean"] { --bg-0:#060a1c; --glass:rgba(20,30,68,.55); --glass-2:rgba(10,16,40,.62); --a1:#5b8cff; --a2:#8a6bff; --a3:#36d1ff; --text:#e8eeff; --text-2:#a3b1de; --text-3:#66739f; --line:rgba(120,150,255,.14); --blob-a:rgba(91,140,255,.35); --blob-b:rgba(138,107,255,.3); }
   [data-theme="sunset"] { --bg-0:#1a0712; --glass:rgba(70,22,46,.5); --glass-2:rgba(40,12,28,.65); --a1:#ff7a59; --a2:#ff3d7f; --a3:#ffc23d; --text:#fff1ea; --text-2:#f0b8c8; --text-3:#9c6a7c; --line:rgba(255,160,130,.16); --blob-a:rgba(255,122,89,.35); --blob-b:rgba(255,61,127,.3); }
   [data-theme="neon"] { --bg-0:#05030d; --glass:rgba(30,14,60,.55); --glass-2:rgba(12,6,30,.65); --a1:#39ff9e; --a2:#00d4ff; --a3:#ff3dff; --text:#eafff6; --text-2:#9ff5d0; --text-3:#4f7a6c; --line:rgba(57,255,158,.16); --blob-a:rgba(57,255,158,.25); --blob-b:rgba(255,61,255,.25); }
@@ -1239,6 +1265,11 @@
 <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
 <script src="badges.js"></script>
 <script>
+  if (typeof window.badgesHTML !== "function") {
+    window.badgesHTML = function () { return ""; };
+  }
+</script>
+<script>
   /* Страховка: если badges.js не загрузился (404, кэш, ошибка), интерфейс не падает */
   if (typeof window.badgesHTML !== "function") {
     window.badgesHTML = function () { return ""; };
@@ -1931,12 +1962,25 @@
   function placeholderOf(n) { return isDM(n) ? "Написать: " + titleOf(n) : "Написать в #" + titleOf(n); }
 
   /* вид: главная / друзья / личные сообщения */
-  function setView(v) {
+    function setView(v) {
     view = v;
     panelEl("chat").classList.toggle("is-friends", v === "friends");
-    document.querySelectorAll(".rail .server").forEach(b => b.classList.toggle("active", v !== "home" ? b.dataset.view === "friends" : b.dataset.srv === server));
+    
+    // Исправлено: используем activeSrv вместо несуществующей server
+    document.querySelectorAll(".rail .server").forEach(b => {
+      if (v !== "home") {
+        b.classList.toggle("active", b.dataset.view === "friends");
+      } else {
+        b.classList.toggle("active", b.dataset.srv === (activeSrv ? activeSrv.id : null));
+      }
+    });
+
     if (v === "home" && isDM(current) && CHANNELS[0] && CHANNELS[0].items[0]) switchTo(CHANNELS[0].items[0].n);
-    if (v === "friends") { $("chTitle").textContent = "Друзья"; document.querySelector(".chat-head .hash").textContent = "♥"; renderFriends(); }
+    if (v === "friends") { 
+      $("chTitle").textContent = "Друзья"; 
+      document.querySelector(".chat-head .hash").textContent = "♥"; 
+      renderFriends(); 
+    }
     renderChannels();
   }
   function openDM(n) { setView("home"); switchTo("dm:" + n); }
@@ -2777,8 +2821,9 @@
       const delay = `style="animation-delay:${Math.min(i*0.05,0.6)}s"`;
       const reacts = m.r ? `<div class="reactions">${m.r.map(([e,n,mine]) => `<button class="react ${mine?"mine":""}" data-e="${esc(e)}">${EMO[e] ? emo(e) : esc(e)} ${n}</button>`).join("")}</div>` : "";
       const actions = `<div class="actions" data-i="${i}"><button data-act="react" title="Реакция">${I26("react")}</button><button data-act="reply" title="Ответить">${I26("reply")}</button><button data-act="more" title="Ещё">${I26("more")}</button></div>`;
-      if (cont) html += `<div class="msg cont" ${delay}><span class="stamp">${m.time}</span><div class="av"></div><div class="body">${bodyHTML(m)}${tickHTML(m)}${reacts}</div>${actions}</div>`;
-      else html += `<div class="msg" ${delay}><div class="av" style="background:${p.avatar ? "none" : p.g}">${p.avatar ? `<img src="${p.avatar}" alt="">` : initial(p.name)}${decoHTML(decorOf(m.a))}</div>
+            const isMine = USER && m.a === USER.nick;
+      if (cont) html += `<div class="msg cont ${isMine ? 'mine' : ''}" ${delay}><span class="stamp">${m.time}</span><div class="av"></div><div class="body">${bodyHTML(m)}${tickHTML(m)}${reacts}</div>${actions}</div>`;
+      else html += `<div class="msg ${isMine ? 'mine' : ''}" ${delay}><div class="av" style="background:${p.avatar ? "none" : p.g}">${p.avatar ? `<img src="${p.avatar}" alt="">` : initial(p.name)}${decoHTML(decorOf(m.a))}</div>
         <div class="body"><div class="head"><span class="author">${esc(p.name)}${badgesHTML(p)}</span><span class="nick">@${esc(p.nick)}</span><span class="time">${m.time}</span></div>${bodyHTML(m)}${tickHTML(m)}${reacts}</div>${actions}</div>`;
       prev = m;
     });
