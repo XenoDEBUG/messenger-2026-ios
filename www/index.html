@@ -1239,6 +1239,12 @@
 <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
 <script src="badges.js"></script>
 <script>
+  /* Страховка: если badges.js не загрузился (404, кэш, ошибка), интерфейс не падает */
+  if (typeof window.badgesHTML !== "function") {
+    window.badgesHTML = function () { return ""; };
+    console.warn("[badges] badges.js не загрузился — значки отключены");
+  }
+
   /* ===================== СЕРВЕР ===================== */
   const SRV = { token: localStorage.getItem("mtoken") || "" };
   let socket = null;
