@@ -796,6 +796,13 @@
 
   /* ===== звонки ===== */
   .call-title::after { content: attr(data-status); display:block; font-size:12px; font-weight:500; opacity:.7; }
+  .tile .tv { position:relative; }
+  .tile .tv .ca { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:96px; height:96px; border-radius:50%; display:grid; place-items:center; font-size:36px; font-weight:700; color:#fff; border:3px solid rgba(255,255,255,.9); box-shadow:0 10px 30px rgba(0,0,0,.45); }
+  .tile .tv .ca img { width:100%; height:100%; border-radius:50%; object-fit:cover; }
+  .tile .tv:has(video.on) .ca { display:none; }
+  #icIco { overflow:visible; }
+  #icIco img { width:100%; height:100%; border-radius:50%; object-fit:cover; }
+  .sys-msg { text-align:center; margin:12px auto; font-size:12px; color:var(--muted, #8b93b8); background:rgba(255,255,255,.06); border-radius:999px; padding:5px 14px; width:fit-content; max-width:90%; }
   #remoteVid { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .3s; }
   #remoteVid.on { opacity:1; }
   .incoming { position:fixed; inset:0; z-index:300; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.6); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
@@ -2057,8 +2064,16 @@
     else { title = "#" + current; people = MEMBERS.filter(m => m.st !== "invis").map(m => profileOf(m.nick)); }
     openCall(title, people, video);
   }
+  function bannerCss(p) {
+    const b = p.bn;
+    if (!b) return p.g || GRADS[0];
+    if (/^(https?:|\/|data:)/.test(b)) return `url("${b}") center/cover`;
+    return b;
+  }
   function tileHTML(p, self) {
-    return `<div class="tile ${self ? "me" : ""}"><div class="tv" style="background:${p.avatar ? "none" : p.g}">${self ? `<video id="selfVid" autoplay muted playsinline></video>` : ""}${p.avatar ? `<img src="${p.avatar}" alt="">` : `<span class="tinit">${initial(p.name)}</span>`}</div><div class="tflags" data-hand="${self ? "me" : p.nick}"></div><div class="tn">${esc(p.name)}<span class="un">@${esc(p.nick)}</span>${self ? " · вы" : ""}</div></div>`;
+    const ava = p.avatar ? `<img src="${p.avatar}" alt="">` : `<span>${initial(p.name)}</span>`;
+    const decor = decoHTML(p.decor !== undefined ? p.decor : decorOf(p.nick));
+    return `<div class="tile ${self ? "me" : ""}"><div class="tv" style="background:${bannerCss(p)}">${self ? `<video id="selfVid" autoplay muted playsinline></video>` : ""}<div class="ca" style="background:${p.g || GRADS[0]}">${ava}${decor}</div></div><div class="tflags" data-hand="${self ? "me" : p.nick}"></div><div class="tn">${esc(p.name)}<span class="un">@${esc(p.nick)}</span>${self ? " · вы" : ""}</div></div>`;
   }
   function renderCallGrid() {
     $("callGrid").innerHTML = tileHTML(profileOf(USER.nick), true) + CALL.people.map(p => tileHTML(p, false)).join("");
@@ -2643,9 +2658,17 @@
 
   const feed = $("feed");
   function render() {
-    const list = STORE[current] || [];
+    // сообщения и записи о звонках в одной ленте: запись встаёт на своё место по порядку
+    const base = STORE[current] || [], sysArr = SYS[current] || [], list = [];
+    let si = 0;
+    base.forEach((m, bi) => {
+      while (si < sysArr.length && sysArr[si].at <= bi) list.push(sysArr[si++]);
+      list.push(m);
+    });
+    while (si < sysArr.length) list.push(sysArr[si++]);
     let html = '<div class="day">Сегодня</div>', prev = null;
     list.forEach((m, i) => {
+      if (m.sys) { html += `<div class="sys-msg">${esc(m.t)} · ${m.time}</div>`; prev = null; return; }
       const p = who(m.a);
       const cont = prev && prev.a === m.a;
       const delay = `style="animation-delay:${Math.min(i*0.05,0.6)}s"`;
@@ -3024,10 +3047,47 @@
   /* Если звонок не соединяется через мобильный интернет, нужен TURN-сервер: добавьте его сюда */
   const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
   const rtc = { pc: null, peer: null, local: null, remote: null, audioTrack: null, videoTrack: null, screenTrack: null,
-    aSender: null, vSender: null, pending: [], ringTimer: null, incoming: null };
+    aSender: null, vSender: null, pending: [], ringTimer: null, incoming: null, connectedAt: null, outgoing: false };
   const callVideoOn = () => rtc.screenTrack || rtc.videoTrack;
   function setCallStatus(t) { const el = $("callTitle"); if (el) el.setAttribute("data-status", t); }
 
+  /* звук собеседника идёт через отдельный аудиоэлемент, поэтому он не зависит от видео и плитки */
+  const audioEls = new Map();
+  function remoteHasVideo(s) {
+    return !!(s && s.getVideoTracks().some((t) => t.readyState === "live" && !t.muted));
+  }
+  function watchRemoteTrack(t) {
+    t.onmute = t.onunmute = t.onended = () => attachStream();
+  }
+  function playAudio(key, stream) {
+    let a = audioEls.get(key);
+    if (!a) {
+      a = document.createElement("audio");
+      a.autoplay = true; a.playsInline = true;
+      document.body.appendChild(a);
+      audioEls.set(key, a);
+    }
+    if (a.srcObject !== stream) a.srcObject = stream;
+    a.play().catch(() => {});
+  }
+  function stopAudio(key) {
+    const a = audioEls.get(key);
+    if (a) { a.srcObject = null; a.remove(); audioEls.delete(key); }
+  }
+  function callDur(ms) {
+    const s = Math.floor(ms / 1000);
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    const p = (n) => String(n).padStart(2, "0");
+    return h ? `${h}:${p(m)}:${p(sec)}` : `${p(m)}:${p(sec)}`;
+  }
+  /* запись о звонке в переписке с собеседником; хранится отдельно, чтобы перезагрузка переписки её не стирала */
+  const SYS = {};
+  function callLog(peer, text) {
+    const key = "dm:" + peer;
+    const time = new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+    (SYS[key] ||= []).push({ sys: true, t: text, time, at: (STORE[key] || []).length });
+    if (current === key) render();
+  }
   function addRemoteVid() {
     if (gc.room) return addGroupVids();
     const pt = document.querySelector("#callGrid .tile:not(.me) .tv");
@@ -3046,7 +3106,8 @@
     const r = document.getElementById("remoteVid");
     if (r) {
       r.srcObject = rtc.remote || null;
-      r.classList.toggle("on", !!(rtc.remote && rtc.remote.getVideoTracks().length));
+      r.muted = true; // звук играет отдельно, здесь только картинка
+      r.classList.toggle("on", remoteHasVideo(rtc.remote));
     }
   }
 
@@ -3055,10 +3116,14 @@
     rtc.pc = pc; rtc.peer = peer;
     rtc.remote = new MediaStream();
     if (offerer) { pc.addTransceiver("audio", { direction: "sendrecv" }); pc.addTransceiver("video", { direction: "sendrecv" }); refSenders(); }
-    pc.ontrack = (e) => { rtc.remote.addTrack(e.track); addRemoteVid(); attachStream(); };
+    pc.ontrack = (e) => { rtc.remote.addTrack(e.track); watchRemoteTrack(e.track); playAudio("rtc", rtc.remote); addRemoteVid(); attachStream(); };
     pc.onicecandidate = (e) => { if (e.candidate && socket) socket.emit("call:ice", { to: peer, candidate: e.candidate }); };
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === "connected") setCallStatus("В звонке");
+      if (pc.connectionState === "connected") {
+        if (!rtc.connectedAt) rtc.connectedAt = Date.now();
+        playAudio("rtc", rtc.remote);
+        setCallStatus("В звонке");
+      }
       if (pc.connectionState === "failed") endRealCall(true, "Соединение не удалось. Нужен TURN-сервер для этой сети");
     };
     return pc;
@@ -3092,7 +3157,9 @@
       await attachLocal(local);
       const offer = await rtc.pc.createOffer();
       await rtc.pc.setLocalDescription(offer);
+      rtc.outgoing = true;
       socket.emit("call:invite", { to: nick, offer: rtc.pc.localDescription, video: !!video });
+      await loadUserToCache(nick); // подгружаем профиль, чтобы показать имя, цвет и аватар
       openCall(profileOf(nick).name, [profileOf(nick)], false);
       CALL.cam = !!video; updateCallBar();
       setCallStatus("Вызов…");
@@ -3105,11 +3172,17 @@
     }
   }
 
-  function onCallInvite({ from, offer, video }) {
+  async function onCallInvite({ from, offer, video }) {
     if (rtc.pc || rtc.incoming) { if (socket) socket.emit("call:end", { to: from }); return; }
     rtc.incoming = { from, offer, video: !!video };
-    $("icName").textContent = profileOf(from).name;
+    await loadUserToCache(from);
+    if (!rtc.incoming || rtc.incoming.from !== from) return; // успели отменить
+    const p = profileOf(from);
+    $("icName").textContent = p.name;
     $("icSub").textContent = video ? "Видеозвонок" : "Голосовой звонок";
+    const ico = $("icIco");
+    ico.style.background = p.avatar ? "none" : (p.g || GRADS[0]);
+    ico.innerHTML = p.avatar ? `<img src="${p.avatar}" alt="">` : initial(p.name);
     $("incomingCall").classList.add("open");
   }
   function hideIncoming() { $("incomingCall").classList.remove("open"); }
@@ -3142,6 +3215,7 @@
     if (gc.incoming) { const g = gc.incoming; gc.incoming = null; hideIncoming(); if (socket) socket.emit("gcall:decline", { room: g.room }); return; }
     const inc = rtc.incoming;
     rtc.incoming = null; hideIncoming();
+    if (inc) callLog(inc.from, "Вы отклонили звонок");
     if (inc && socket) socket.emit("call:end", { to: inc.from });
   }
   async function onCallAnswer({ from, answer }) {
@@ -3157,8 +3231,8 @@
     try { await rtc.pc.addIceCandidate(candidate); } catch (e) {}
   }
   function onCallEnd({ from }) {
-    if (rtc.incoming && rtc.incoming.from === from) { rtc.incoming = null; return hideIncoming(); }
-    if (rtc.peer === from) endRealCall(false, "Собеседник завершил звонок");
+    if (rtc.incoming && rtc.incoming.from === from) { rtc.incoming = null; hideIncoming(); return callLog(from, "Пропущенный звонок"); }
+    if (rtc.peer === from) endRealCall(false, rtc.connectedAt ? "Собеседник завершил звонок" : "Звонок отклонён собеседником");
   }
 
   function cleanupRTC() {
@@ -3166,15 +3240,25 @@
     if (rtc.pc) { try { rtc.pc.close(); } catch (e) {} }
     [rtc.local, rtc.remote].forEach((s) => s && s.getTracks().forEach((t) => t.stop()));
     if (rtc.screenTrack) rtc.screenTrack.stop();
+    stopAudio("rtc");
     Object.assign(rtc, { pc: null, peer: null, local: null, remote: null, audioTrack: null, videoTrack: null,
-      screenTrack: null, aSender: null, vSender: null, pending: [], ringTimer: null });
+      screenTrack: null, aSender: null, vSender: null, pending: [], ringTimer: null, connectedAt: null, outgoing: false });
   }
   function endRealCall(notify, msg) {
     if (gc.room) return leaveGroup(msg);
-    const peer = rtc.peer;
+    const peer = rtc.peer, started = rtc.connectedAt, outgoing = rtc.outgoing;
     if (notify && peer && socket) socket.emit("call:end", { to: peer });
+    let text = msg || "Звонок завершён 📞";
+    if (started) {
+      text = `Звонок завершён · ${callDur(Date.now() - started)}`;
+      if (peer) callLog(peer, `📞 Звонок · ${callDur(Date.now() - started)}`);
+    } else if (peer && outgoing) {
+      if (!msg) callLog(peer, "Звонок отменён");
+      else if (msg.includes("отклон")) callLog(peer, "Звонок отклонён собеседником");
+      else callLog(peer, "Не дозвонились");
+    }
     cleanupRTC();
-    endCall(msg || "Звонок завершён 📞");
+    endCall(text);
   }
 
   /* камера и демонстрация экрана для настоящего звонка */
@@ -3249,7 +3333,8 @@
     document.querySelectorAll("[data-rv]").forEach((el) => {
       const pe = gc.peers.get(el.dataset.rv);
       el.srcObject = pe ? pe.remote : null;
-      el.classList.toggle("on", !!(pe && pe.remote.getVideoTracks().length));
+      el.muted = true;
+      el.classList.toggle("on", remoteHasVideo(pe && pe.remote));
     });
   }
   function refreshGroupGrid() {
@@ -3261,7 +3346,7 @@
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     const peer = { pc, remote: new MediaStream() };
     gc.peers.set(nick, peer);
-    pc.ontrack = (e) => { peer.remote.addTrack(e.track); refreshGroupGrid(); };
+    pc.ontrack = (e) => { peer.remote.addTrack(e.track); watchRemoteTrack(e.track); playAudio(nick, peer.remote); refreshGroupGrid(); };
     pc.onicecandidate = (e) => { if (e.candidate) gcSend(nick, { type: "ice", candidate: e.candidate }); };
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === "failed" || pc.connectionState === "closed") dropGroupPeer(nick);
@@ -3286,7 +3371,7 @@
     const p = gc.peers.get(nick);
     if (!p) return;
     try { p.pc.close(); } catch (e) {}
-    gc.peers.delete(nick);
+    gc.peers.delete(nick); stopAudio(nick);
     refreshGroupGrid();
   }
   async function offerTo(nick) {
@@ -3335,7 +3420,7 @@
   function leaveGroup(msg) {
     const room = gc.room;
     if (room && socket) socket.emit("gcall:leave", { room });
-    gc.peers.forEach((p) => { try { p.pc.close(); } catch (e) {} });
+    gc.peers.forEach((p, n) => { try { p.pc.close(); } catch (e) {} stopAudio(n); });
     gc.peers.clear();
     [gc.audioTrack, gc.videoTrack, gc.screenTrack].forEach((t) => t && t.stop());
     clearTimeout(gc.ring);
