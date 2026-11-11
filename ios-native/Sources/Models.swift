@@ -8,6 +8,7 @@ struct User: Codable, Identifiable, Hashable {
     let avatar: String?
     let bio: String?
     let status: String?
+    var st: String? = nil   // online / idle / dnd / invis — статус из index.html
 
     var name: String {
         if let d = displayName, !d.isEmpty { return d }

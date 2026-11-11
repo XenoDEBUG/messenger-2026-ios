@@ -28,89 +28,6 @@ let rolePermLabels: [PermOption] = [
     PermOption(id: "kick", title: "Исключать участников"),
 ]
 
-// MARK: - Список серверов
-
-enum ServersSheet: String, Identifiable {
-    case create, join
-    var id: String { rawValue }
-}
-
-struct ServersView: View {
-    @EnvironmentObject var session: Session
-    @State var sheet: ServersSheet?
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section("Мои серверы") {
-                    if session.servers.isEmpty {
-                        Text("Вы пока не в серверах. Создайте свой или вступите по коду приглашения.")
-                            .foregroundStyle(Theme.text2)
-                    }
-                    ForEach(session.servers) { s in
-                        NavigationLink(value: s) {
-                            ServerRow(server: s)
-                        }
-                    }
-                }
-                Section {
-                    Button { sheet = .create } label: {
-                        Label("Создать сервер", systemImage: "plus.circle")
-                    }
-                    Button { sheet = .join } label: {
-                        Label("Вступить по коду", systemImage: "ticket")
-                    }
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .navigationTitle("Серверы")
-            .navigationDestination(for: GuildServer.self) { s in
-                ServerDetailView(serverId: s.id)
-            }
-            .navigationDestination(for: ChannelRef.self) { ref in
-                ChannelView(ref: ref)
-            }
-            .refreshable { await session.loadServers() }
-            .sheet(item: $sheet) { kind in
-                switch kind {
-                case .create:
-                    PromptSheet(title: "Новый сервер", placeholder: "Название", action: "Создать") { name in
-                        await session.createServer(name)
-                    }
-                case .join:
-                    PromptSheet(title: "Вступить по коду", placeholder: "Код приглашения", action: "Вступить") { code in
-                        await session.joinServer(code: code.uppercased())
-                    }
-                }
-            }
-        }
-    }
-}
-
-struct ServerRow: View {
-    let server: GuildServer
-
-    var body: some View {
-        HStack(spacing: 12) {
-            if let img = dataURLImage(server.avatar) {
-                Image(uiImage: img)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 44, height: 44)
-                    .clipShape(Circle())
-            } else {
-                Avatar(name: server.name, size: 44)
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(server.name)
-                Text("\(server.members.count) участников · \(server.channels.count) каналов")
-                    .font(.caption)
-                    .foregroundStyle(Theme.text2)
-            }
-        }
-    }
-}
-
 // MARK: - Карточка сервера
 
 enum DetailSheet: Identifiable {
@@ -131,6 +48,7 @@ struct ServerDetailView: View {
     @EnvironmentObject var session: Session
     @Environment(\.dismiss) var dismiss
     let serverId: String
+    var onPick: (ChannelRef) -> Void = { _ in }
     @State var sheet: DetailSheet?
     @State var confirmDelete = false
 
@@ -186,7 +104,10 @@ struct ServerDetailView: View {
         List {
             Section("Каналы") {
                 ForEach(s.channels) { ch in
-                    NavigationLink(value: ChannelRef(serverId: s.id, channel: ch)) {
+                    Button {
+                        onPick(ChannelRef(serverId: s.id, channel: ch))
+                        dismiss()
+                    } label: {
                         Label(ch.name, systemImage: "number")
                     }
                     .swipeActions {
@@ -308,29 +229,6 @@ struct MemberRow: View {
             }
             Spacer()
         }
-    }
-}
-
-// MARK: - Канал
-
-struct ChannelView: View {
-    @EnvironmentObject var session: Session
-    let ref: ChannelRef
-    @State var text = ""
-
-    private var msgs: [Message] { session.channelMessages[ref.channel.id] ?? [] }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            MessageList(messages: msgs, meName: session.me?.username, showAuthor: true)
-            Composer(text: $text) { t in
-                session.sendChannel(ref.channel.id, text: t)
-            }
-        }
-        .background(AppBackground())
-        .navigationTitle("# " + ref.channel.name)
-        .navigationBarTitleDisplayMode(.inline)
-        .task { await session.openChannel(ref.channel.id) }
     }
 }
 
