@@ -1,0 +1,35 @@
+name: Messenger
+options:
+  bundleIdPrefix: com.xeno
+  deploymentTarget:
+    iOS: "16.0"
+packages:
+  SocketIO:
+    url: https://github.com/socketio/socket.io-client-swift
+    from: 16.1.1
+targets:
+  Messenger:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    dependencies:
+      - package: SocketIO
+    info:
+      path: Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Messenger 2026
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        NSMicrophoneUsageDescription: Микрофон для голосовых сообщений и звонков
+        NSCameraUsageDescription: Камера для видеозвонков
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xeno.messenger.native
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGNING_ALLOWED: NO
+        SWIFT_VERSION: "5.0"
