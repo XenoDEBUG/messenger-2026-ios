@@ -4,7 +4,7 @@ import UIKit
 // Все настройки из index.html (localStorage на сайте, UserDefaults в приложении)
 struct PrefsData: Codable, Equatable {
     var theme = "ocean"
-    var mono = false
+    var mono = true                 // в index.html по умолчанию включён монохром
     var radius: Double = 22
     var density = "comfy"           // cozy / comfy / compact
     var blobs = true
@@ -89,7 +89,7 @@ final class Prefs: ObservableObject {
     @Published var revision = 0
 
     private init() {
-        if let data = UserDefaults.standard.data(forKey: "prefs"),
+        if let data = UserDefaults.standard.data(forKey: "prefs2"),
            let v = try? JSONDecoder().decode(PrefsData.self, from: data) {
             d = v
         } else {
@@ -100,7 +100,7 @@ final class Prefs: ObservableObject {
 
     private func save() {
         if let data = try? JSONEncoder().encode(d) {
-            UserDefaults.standard.set(data, forKey: "prefs")
+            UserDefaults.standard.set(data, forKey: "prefs2")
         }
     }
 
