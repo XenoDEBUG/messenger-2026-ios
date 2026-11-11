@@ -4,14 +4,22 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject var session: Session
+    @EnvironmentObject var prefs: Prefs
+    @EnvironmentObject var ui: AppUI
 
     var body: some View {
         Group {
             if session.isLoggedIn {
-                MainView()
+                MainView().id(prefs.revision)
             } else {
-                LoginView()
+                LoginView().id(prefs.revision)
             }
+        }
+        .sheet(isPresented: $ui.showSettings) {
+            SettingsSheet()
+                .environmentObject(session)
+                .environmentObject(prefs)
+                .environmentObject(ui)
         }
         .preferredColorScheme(.dark)
         .task { await session.restore() }
@@ -244,22 +252,22 @@ enum ChatTarget: Hashable {
 }
 
 struct MainView: View {
-    @State var tab: MainTab = .chat
-    @State var target: ChatTarget?
+    @EnvironmentObject var ui: AppUI
 
     var body: some View {
         ZStack(alignment: .bottom) {
             AppBackground()
+            FXLayer()
             Group {
-                switch tab {
+                switch ui.tab {
                 case .channels:
-                    ChannelsTab(target: $target) { tab = .chat }
+                    ChannelsTab(target: $ui.target) { ui.tab = .chat }
                 case .chat:
-                    ChatTab(target: target)
+                    ChatTab(target: ui.target)
                 case .friends:
                     FriendsTab { t in
-                        target = t
-                        tab = .chat
+                        ui.target = t
+                        ui.tab = .chat
                     }
                 case .profile:
                     ProfileTab()
@@ -270,7 +278,7 @@ struct MainView: View {
             .padding(.bottom, 92)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            MTabBar(tab: $tab)
+            MTabBar(tab: $ui.tab)
         }
     }
 }
@@ -313,7 +321,7 @@ struct MTabBar: View {
             }
         }
         .padding(6)
-        .glass(22)
+        .glass()
         .padding(.horizontal, 12)
         .padding(.bottom, 10)
     }
@@ -327,6 +335,7 @@ struct IdString: Identifiable, Hashable {
 
 struct ChannelsTab: View {
     @EnvironmentObject var session: Session
+    @EnvironmentObject var ui: AppUI
     @Binding var target: ChatTarget?
     let onOpen: () -> Void
 
@@ -462,10 +471,15 @@ struct ChannelsTab: View {
                 .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 16))
                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.line, lineWidth: 1))
                 .padding(10)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    ui.settingsTab = "profile"
+                    ui.showSettings = true
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .glass(22)
+        .glass()
         .sheet(item: $sheet) { kind in
             NavigationStack {
                 sheetContent(kind)
@@ -531,7 +545,7 @@ struct ChatTab: View {
                     .padding(40)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .glass(22)
+            .glass()
         }
     }
 }
@@ -662,7 +676,7 @@ struct ChatShell<Head: View>: View {
             Composer(text: $text, placeholder: placeholder, onSend: onSend)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .glass(22)
+        .glass()
     }
 }
 
@@ -842,7 +856,7 @@ struct FriendsTab: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .glass(22)
+        .glass()
     }
 
     private func filterButton(_ title: String, _ idx: Int) -> some View {
@@ -904,6 +918,7 @@ struct FriendsTab: View {
 
 struct ProfileTab: View {
     @EnvironmentObject var session: Session
+    @EnvironmentObject var ui: AppUI
     @State var editing = false
 
     var body: some View {
@@ -929,7 +944,10 @@ struct ProfileTab: View {
                                 .foregroundStyle(Theme.text2)
                                 .lineSpacing(3)
                         }
-                        Button("Редактировать профиль") { editing = true }
+                        Button("Редактировать профиль") {
+                            ui.settingsTab = "profile"
+                            ui.showSettings = true
+                        }
                             .buttonStyle(PrimaryButtonStyle())
                             .padding(.top, 10)
                         Button("Выйти") { session.logout() }
@@ -941,7 +959,7 @@ struct ProfileTab: View {
                     .padding(.horizontal, 22)
                     .padding(.bottom, 22)
                 }
-                .glass(22)
+                .glass()
                 .sheet(isPresented: $editing) {
                     NavigationStack {
                         ProfileEditSheet(user: me)

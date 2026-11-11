@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // Палитра из www/index.html (тема «ocean» — по умолчанию)
 struct Palette {
@@ -46,6 +47,12 @@ enum Theme {
         blobB: rgba(138, 107, 255, 0.30))
 
     static var p = ocean
+    static var radius: CGFloat = 22         // --r из настроек «Скругления»
+    static var blobsOn = true               // «Фоновые пятна»
+    static var bgTint: Color? = nil         // «Цвет фона»
+    static var bgImage: UIImage? = nil      // «Свой фон»
+    static var imgOpacity: Double = 0.4     // «Видимость фото»
+    static var padding: CGFloat = 10        // плотность: --pad
 
     static var bg: Color { p.bg }
     static var glass: Color { p.glass }
@@ -84,7 +91,7 @@ enum Theme {
     }
 }
 
-// Фон: тёмная база и три размытых пятна, как .bg / .blob в index.html
+// Фон: тёмная база, фото, и три размытых пятна, как .bg / .blob в index.html
 struct AppBackground: View {
     var body: some View {
         GeometryReader { g in
@@ -92,22 +99,32 @@ struct AppBackground: View {
             let h = g.size.height
             let m = max(w, h)
             ZStack {
-                Theme.p.bg
-                // .b1: 60vmax, top -20vmax, left -15vmax
-                Circle().fill(Theme.p.blobA)
-                    .frame(width: m * 0.6, height: m * 0.6)
-                    .blur(radius: 90)
-                    .position(x: m * 0.15, y: m * 0.1)
-                // .b2: 60vmax, bottom -25vmax, right -15vmax
-                Circle().fill(Theme.p.blobB)
-                    .frame(width: m * 0.6, height: m * 0.6)
-                    .blur(radius: 90)
-                    .position(x: w - m * 0.15, y: h - m * 0.05)
-                // .b3: 40vmax, top 30%, left 40%, opacity .25
-                Circle().fill(Theme.p.a3.opacity(0.25))
-                    .frame(width: m * 0.4, height: m * 0.4)
-                    .blur(radius: 90)
-                    .position(x: w * 0.4 + m * 0.2, y: h * 0.3 + m * 0.2)
+                Theme.bgTint ?? Theme.p.bg
+                if let img = Theme.bgImage {
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: w, height: h)
+                        .opacity(Theme.imgOpacity)
+                        .clipped()
+                }
+                if Theme.blobsOn {
+                    // .b1: 60vmax, top -20vmax, left -15vmax
+                    Circle().fill(Theme.p.blobA)
+                        .frame(width: m * 0.6, height: m * 0.6)
+                        .blur(radius: 90)
+                        .position(x: m * 0.15, y: m * 0.1)
+                    // .b2: 60vmax, bottom -25vmax, right -15vmax
+                    Circle().fill(Theme.p.blobB)
+                        .frame(width: m * 0.6, height: m * 0.6)
+                        .blur(radius: 90)
+                        .position(x: w - m * 0.15, y: h - m * 0.05)
+                    // .b3: 40vmax, top 30%, left 40%, opacity .25
+                    Circle().fill(Theme.p.a3.opacity(0.25))
+                        .frame(width: m * 0.4, height: m * 0.4)
+                        .blur(radius: 90)
+                        .position(x: w * 0.4 + m * 0.2, y: h * 0.3 + m * 0.2)
+                }
             }
             .frame(width: w, height: h)
             .clipped()
@@ -131,8 +148,8 @@ struct GlassBox: ViewModifier {
 }
 
 extension View {
-    func glass(_ radius: CGFloat = 22) -> some View {
-        modifier(GlassBox(radius: radius))
+    func glass(_ radius: CGFloat? = nil) -> some View {
+        modifier(GlassBox(radius: radius ?? Theme.radius))
     }
 }
 

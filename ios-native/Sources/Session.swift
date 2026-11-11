@@ -104,6 +104,17 @@ final class Session: ObservableObject {
         }
     }
 
+    // Частичное обновление профиля (PATCH /api/me): имя, цвет, статус, картинки, ссылки
+    func patchProfile(_ body: [String: Any]) async {
+        guard let t = token else { return }
+        do {
+            let r: MeResponse = try await API.request("PATCH", "/api/me", body: body, token: t, decode: MeResponse.self)
+            me = r.user
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
     // MARK: Друзья
 
     func loadFriends() async {

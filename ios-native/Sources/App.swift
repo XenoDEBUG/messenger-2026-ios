@@ -6,7 +6,10 @@ struct MessengerApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView().environmentObject(session)
+            RootView()
+                .environmentObject(session)
+                .environmentObject(Prefs.shared)
+                .environmentObject(AppUI.shared)
         }
     }
 }
